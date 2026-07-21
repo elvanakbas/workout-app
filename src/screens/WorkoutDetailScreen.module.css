@@ -1,0 +1,153 @@
+.screen {
+  padding: var(--space-4);
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.back {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.tagWorkday,
+.tagOffDay {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tagWorkday {
+  background: rgba(79, 209, 197, 0.16);
+  color: var(--color-accent);
+}
+
+.tagOffDay {
+  background: rgba(255, 179, 71, 0.16);
+  color: #ffb347;
+}
+
+.metaText {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.focus {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.guidance {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.warmupList,
+.exerciseList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.warmupItem,
+.exercise,
+.cardioBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.warmupName {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.warmupDuration {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.exerciseHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.exerciseName {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.optionalTag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px var(--space-2);
+  flex-shrink: 0;
+}
+
+.exerciseMeta {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.safetyNote {
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: #ffb347;
+}
+
+.startButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-target);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: 700;
+  font-size: 16px;
+}

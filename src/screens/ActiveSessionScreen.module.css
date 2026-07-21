@@ -1,0 +1,209 @@
+.screen {
+  padding: var(--space-4);
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.back {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.lowEnergyToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.lowEnergyLabel {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.lowEnergyHint {
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  max-width: 220px;
+}
+
+.toggleOn,
+.toggleOff {
+  min-height: var(--tap-target);
+  min-width: 64px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.toggleOn {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.toggleOff {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.exerciseList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.exercise,
+.cardioSection,
+.feedbackSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.exerciseName {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.exerciseMeta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.lastWeight {
+  font-size: 13px;
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.setsGrid {
+  display: grid;
+  grid-template-columns: 32px 1fr 1.4fr;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
+}
+
+.setsGridLabel {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.setNumber {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.setInput {
+  min-height: var(--tap-target);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  width: 100%;
+}
+
+.weightInputWrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.weightUnit {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  min-height: var(--tap-target);
+}
+
+.feedbackField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 14px;
+}
+
+.energyOptions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.energyOption,
+.energyOptionActive {
+  flex: 1;
+  min-height: var(--tap-target);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.energyOption {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.energyOptionActive {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.noteInput {
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  resize: vertical;
+  font-size: 14px;
+}
+
+.completeButton {
+  min-height: var(--tap-target);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border: none;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+}

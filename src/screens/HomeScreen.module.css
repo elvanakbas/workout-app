@@ -1,0 +1,102 @@
+.screen {
+  padding: var(--space-4);
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.weekHeader {
+  margin: var(--space-3) 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.item {
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.itemLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  min-height: var(--tap-target);
+  color: var(--color-text);
+}
+
+.itemDisabled {
+  opacity: 0.55;
+}
+
+.order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-surface-raised);
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.itemBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.tagWorkday,
+.tagOffDay {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tagWorkday {
+  background: rgba(79, 209, 197, 0.16);
+  color: var(--color-accent);
+}
+
+.tagOffDay {
+  background: rgba(255, 179, 71, 0.16);
+  color: #ffb347;
+}
