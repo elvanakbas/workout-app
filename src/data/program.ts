@@ -180,11 +180,7 @@ const CARDIO_VISUAL_KEY: Record<CardioMachine, string> = {
 interface PhaseConfig {
   label: string;
   guidance: string;
-  strengthSets: number;
-  strengthReps: string;
   strengthRestSeconds: number;
-  coreSets: number;
-  coreReps: string;
   coreRestSeconds: number;
   cardioShortMinutes: number;
   cardioLongMinutes: number;
@@ -194,12 +190,8 @@ interface PhaseConfig {
 const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   1: {
     label: "Technique & Base Volume",
-    guidance: "Focus on clean technique and full control on every rep. Stop well short of failure - keep 3+ reps in reserve.",
-    strengthSets: 2,
-    strengthReps: "12-15",
+    guidance: "Focus on clean technique and full control on every rep, with conservative weight selection. Keep 2-3 reps in reserve.",
     strengthRestSeconds: 60,
-    coreSets: 2,
-    coreReps: "30-45 sec / 12-15 reps",
     coreRestSeconds: 30,
     cardioShortMinutes: 8,
     cardioLongMinutes: 15,
@@ -207,12 +199,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   },
   2: {
     label: "Technique & Base Volume",
-    guidance: "Same technique focus as week 1, with one extra set per exercise. Keep 3+ reps in reserve.",
-    strengthSets: 3,
-    strengthReps: "12-15",
+    guidance: "Continue the technique focus from week 1 at the same sets and reps; add a little weight only if last week felt fully controlled. Keep 2-3 reps in reserve.",
     strengthRestSeconds: 60,
-    coreSets: 2,
-    coreReps: "30-45 sec / 12-15 reps",
     coreRestSeconds: 30,
     cardioShortMinutes: 8,
     cardioLongMinutes: 15,
@@ -220,12 +208,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   },
   3: {
     label: "Controlled Load Progression",
-    guidance: "Add a small amount of resistance versus weeks 1-2. Leave 2-3 reps in reserve.",
-    strengthSets: 3,
-    strengthReps: "10-12",
+    guidance: "Add a small amount of resistance versus weeks 1-2 at the same sets and reps. Leave 1-2 reps in reserve.",
     strengthRestSeconds: 90,
-    coreSets: 3,
-    coreReps: "30-45 sec / 12-15 reps",
     coreRestSeconds: 45,
     cardioShortMinutes: 10,
     cardioLongMinutes: 18,
@@ -233,12 +217,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   },
   4: {
     label: "Controlled Load Progression",
-    guidance: "Slightly heavier or fewer reps than week 3. Leave 2-3 reps in reserve.",
-    strengthSets: 3,
-    strengthReps: "8-10",
+    guidance: "Aim slightly heavier than week 3 at the same sets and reps. Leave 1-2 reps in reserve.",
     strengthRestSeconds: 90,
-    coreSets: 3,
-    coreReps: "30-45 sec / 15 reps",
     coreRestSeconds: 45,
     cardioShortMinutes: 10,
     cardioLongMinutes: 18,
@@ -246,12 +226,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   },
   5: {
     label: "Deload",
-    guidance: "Deload week: load and volume are reduced on purpose. This is planned recovery, not a test - keep 3-4 reps in reserve.",
-    strengthSets: 2,
-    strengthReps: "12-15",
+    guidance: "Deload week: sets and load are both reduced on purpose. This is planned recovery, not a test - use lighter loads and keep 3-4 reps in reserve.",
     strengthRestSeconds: 60,
-    coreSets: 2,
-    coreReps: "30 sec / 12 reps",
     coreRestSeconds: 30,
     cardioShortMinutes: 5,
     cardioLongMinutes: 10,
@@ -259,12 +235,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   },
   6: {
     label: "Second Progression Block",
-    guidance: "Resume progression from week 4's working load. Leave 2-3 reps in reserve.",
-    strengthSets: 3,
-    strengthReps: "8-10",
+    guidance: "Resume progression from week 4's working load at the same sets and reps. Leave 1-2 reps in reserve.",
     strengthRestSeconds: 90,
-    coreSets: 3,
-    coreReps: "30-45 sec / 15 reps",
     coreRestSeconds: 45,
     cardioShortMinutes: 10,
     cardioLongMinutes: 20,
@@ -272,12 +244,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   },
   7: {
     label: "Second Progression Block",
-    guidance: "Slightly heavier, lower-rep work. Leave 1-3 reps in reserve - do not chase failure.",
-    strengthSets: 4,
-    strengthReps: "6-8",
+    guidance: "Aim for a slightly heavier top set at the same sets and reps as weeks 3-4 and 6. Leave 1-2 reps in reserve - do not chase failure.",
     strengthRestSeconds: 105,
-    coreSets: 3,
-    coreReps: "40-45 sec / 15-20 reps",
     coreRestSeconds: 45,
     cardioShortMinutes: 12,
     cardioLongMinutes: 20,
@@ -285,18 +253,73 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   },
   8: {
     label: "Controlled Final Week",
-    guidance: "Controlled final week: moderate load only, no maximal or failure attempts.",
-    strengthSets: 3,
-    strengthReps: "10-12",
+    guidance: "Controlled final week: preserve normal sets and reps with moderate load only, no maximal or failure attempts. Keep 2 reps in reserve and use controlled form.",
     strengthRestSeconds: 60,
-    coreSets: 2,
-    coreReps: "30-45 sec / 12-15 reps",
     coreRestSeconds: 30,
     cardioShortMinutes: 8,
     cardioLongMinutes: 15,
     cardioIntensity: "Easy-to-moderate pace."
   }
 };
+
+// ---------------------------------------------------------------------------
+// Training volume (sets/reps) by day type and exercise role.
+//
+// Sets/reps are intentionally week-invariant for every normal week (1-4,
+// 6-8) - progression across those weeks happens through heavier logged
+// weight (tracked per-exercise via the "last weight" hint) and through the
+// tightening reps-in-reserve guidance in `PHASE_BY_WEEK`, not by changing
+// the prescribed sets/reps each week. Week 5 is the sole exception: a
+// deload with reduced sets, per program rules.
+// ---------------------------------------------------------------------------
+
+type StrengthRole = "primary" | "secondary" | "isolation";
+type DayType = "workday" | "offDay";
+
+interface RoleVolume {
+  sets: number;
+  reps: string;
+}
+
+interface WeekVolume {
+  workday: Record<StrengthRole, RoleVolume>;
+  offDay: Record<StrengthRole, RoleVolume>;
+  core: RoleVolume;
+}
+
+/** Normal (non-deload) weeks: 1, 2, 3, 4, 6, 7, 8. */
+const STANDARD_VOLUME: WeekVolume = {
+  workday: {
+    primary: { sets: 3, reps: "10-12" },
+    secondary: { sets: 3, reps: "12" },
+    isolation: { sets: 3, reps: "12-15" }
+  },
+  offDay: {
+    primary: { sets: 4, reps: "10" },
+    secondary: { sets: 3, reps: "12" },
+    isolation: { sets: 3, reps: "12-15" }
+  },
+  core: { sets: 3, reps: "30-45 sec / 12-15 reps" }
+};
+
+/** Week 5 deload: primary lifts stay at 3 sets; accessories/isolation/core drop to 2. */
+const DELOAD_VOLUME: WeekVolume = {
+  workday: {
+    primary: { sets: 3, reps: "10-12" },
+    secondary: { sets: 2, reps: "12-15" },
+    isolation: { sets: 2, reps: "12-15" }
+  },
+  offDay: {
+    primary: { sets: 3, reps: "10-12" },
+    secondary: { sets: 2, reps: "12-15" },
+    isolation: { sets: 2, reps: "12-15" }
+  },
+  core: { sets: 2, reps: "30 sec / 12 reps" }
+};
+
+function getWeekVolume(week: number): WeekVolume {
+  return week === 5 ? DELOAD_VOLUME : STANDARD_VOLUME;
+}
 
 // ---------------------------------------------------------------------------
 // Weekly session templates
@@ -306,19 +329,34 @@ type Variant = "workdayA" | "workdayB" | "offDayA" | "offDayB";
 
 function buildExercise(
   entry: CatalogEntry,
+  role: StrengthRole,
+  dayType: DayType,
+  week: number,
   phase: PhaseConfig,
-  kind: "strength" | "core",
   optional: boolean
 ): Exercise {
-  const sets = kind === "strength" ? phase.strengthSets : phase.coreSets;
-  const reps = kind === "strength" ? phase.strengthReps : phase.coreReps;
-  const rest = kind === "strength" ? phase.strengthRestSeconds : phase.coreRestSeconds;
+  const volume = getWeekVolume(week)[dayType][role];
   return {
     id: entry.id,
     name: entry.name,
-    targetSets: sets,
-    targetReps: reps,
-    restSeconds: rest,
+    targetSets: volume.sets,
+    targetReps: volume.reps,
+    restSeconds: phase.strengthRestSeconds,
+    optional,
+    notes: entry.notes,
+    safetyNote: entry.safetyNote,
+    visualAssetKey: entry.visualAssetKey
+  };
+}
+
+function buildCoreExercise(entry: CatalogEntry, week: number, phase: PhaseConfig, optional: boolean): Exercise {
+  const volume = getWeekVolume(week).core;
+  return {
+    id: entry.id,
+    name: entry.name,
+    targetSets: volume.sets,
+    targetReps: volume.reps,
+    restSeconds: phase.coreRestSeconds,
     optional,
     notes: entry.notes,
     safetyNote: entry.safetyNote,
@@ -352,6 +390,7 @@ function cardioBlock(machine: CardioMachine, phase: PhaseConfig, isShort: boolea
 function buildWorkout(order: number, week: number, variant: Variant): Workout {
   const phase = PHASE_BY_WEEK[week];
   const isShort = variant === "workdayA" || variant === "workdayB";
+  const dayType: DayType = isShort ? "workday" : "offDay";
 
   const base: Omit<
     Workout,
@@ -372,14 +411,14 @@ function buildWorkout(order: number, week: number, variant: Variant): Workout {
             })
           ],
           strength: [
-            buildExercise(STRENGTH.chestPress, phase, "strength", false),
-            buildExercise(STRENGTH.legPress, phase, "strength", false),
-            buildExercise(STRENGTH.seatedCableRow, phase, "strength", false),
-            buildExercise(STRENGTH.legCurl, phase, "strength", true)
+            buildExercise(STRENGTH.chestPress, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.legPress, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.seatedCableRow, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.legCurl, "secondary", dayType, week, phase, true)
           ],
           core: [
-            buildExercise(CORE.deadBug, phase, "core", false),
-            buildExercise(CORE.cableCrunch, phase, "core", true)
+            buildCoreExercise(CORE.deadBug, week, phase, false),
+            buildCoreExercise(CORE.cableCrunch, week, phase, true)
           ],
           cardio: cardioBlock("stationary_bike", phase, isShort)
         };
@@ -399,14 +438,14 @@ function buildWorkout(order: number, week: number, variant: Variant): Workout {
             })
           ],
           strength: [
-            buildExercise(STRENGTH.latPulldown, phase, "strength", false),
-            buildExercise(STRENGTH.hipThrust, phase, "strength", false),
-            buildExercise(STRENGTH.chestSupportedRow, phase, "strength", false),
-            buildExercise(STRENGTH.legExtension, phase, "strength", true)
+            buildExercise(STRENGTH.latPulldown, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.hipThrust, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.chestSupportedRow, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.legExtension, "isolation", dayType, week, phase, true)
           ],
           core: [
-            buildExercise(CORE.sidePlank, phase, "core", false),
-            buildExercise(CORE.birdDog, phase, "core", true)
+            buildCoreExercise(CORE.sidePlank, week, phase, false),
+            buildCoreExercise(CORE.birdDog, week, phase, true)
           ],
           cardio: cardioBlock("elliptical", phase, isShort)
         };
@@ -430,17 +469,17 @@ function buildWorkout(order: number, week: number, variant: Variant): Workout {
             })
           ],
           strength: [
-            buildExercise(STRENGTH.legPress, phase, "strength", false),
-            buildExercise(STRENGTH.legCurl, phase, "strength", false),
-            buildExercise(STRENGTH.hipThrust, phase, "strength", false),
-            buildExercise(STRENGTH.chestPress, phase, "strength", false),
-            buildExercise(STRENGTH.cableLateralRaise, phase, "strength", true),
-            buildExercise(STRENGTH.seatedCalfRaise, phase, "strength", true)
+            buildExercise(STRENGTH.legPress, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.legCurl, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.hipThrust, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.chestPress, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.cableLateralRaise, "isolation", dayType, week, phase, true),
+            buildExercise(STRENGTH.seatedCalfRaise, "isolation", dayType, week, phase, true)
           ],
           core: [
-            buildExercise(CORE.cableCrunch, phase, "core", false),
-            buildExercise(CORE.forearmPlank, phase, "core", false),
-            buildExercise(CORE.woodchopper, phase, "core", true)
+            buildCoreExercise(CORE.cableCrunch, week, phase, false),
+            buildCoreExercise(CORE.forearmPlank, week, phase, false),
+            buildCoreExercise(CORE.woodchopper, week, phase, true)
           ],
           cardio: cardioBlock("rowing", phase, isShort)
         };
@@ -464,17 +503,17 @@ function buildWorkout(order: number, week: number, variant: Variant): Workout {
             })
           ],
           strength: [
-            buildExercise(STRENGTH.chestSupportedRow, phase, "strength", false),
-            buildExercise(STRENGTH.latPulldown, phase, "strength", false),
-            buildExercise(STRENGTH.hipThrust, phase, "strength", false),
-            buildExercise(STRENGTH.legCurl, phase, "strength", false),
-            buildExercise(STRENGTH.cableFacePull, phase, "strength", true),
-            buildExercise(STRENGTH.hipAbduction, phase, "strength", true)
+            buildExercise(STRENGTH.chestSupportedRow, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.latPulldown, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.hipThrust, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.legCurl, "primary", dayType, week, phase, false),
+            buildExercise(STRENGTH.cableFacePull, "isolation", dayType, week, phase, true),
+            buildExercise(STRENGTH.hipAbduction, "isolation", dayType, week, phase, true)
           ],
           core: [
-            buildExercise(CORE.deadBug, phase, "core", false),
-            buildExercise(CORE.sidePlank, phase, "core", false),
-            buildExercise(CORE.machineAbCrunch, phase, "core", true)
+            buildCoreExercise(CORE.deadBug, week, phase, false),
+            buildCoreExercise(CORE.sidePlank, week, phase, false),
+            buildCoreExercise(CORE.machineAbCrunch, week, phase, true)
           ],
           cardio: cardioBlock("elliptical", phase, isShort)
         };
@@ -486,7 +525,7 @@ function buildWorkout(order: number, week: number, variant: Variant): Workout {
     order,
     week,
     length: isShort ? "short" : "long",
-    estimatedDurationMinutes: isShort ? { min: 30, max: 40 } : { min: 70, max: 90 },
+    estimatedDurationMinutes: isShort ? { min: 35, max: 45 } : { min: 70, max: 90 },
     phaseLabel: phase.label,
     intensityGuidance: phase.guidance,
     ...base

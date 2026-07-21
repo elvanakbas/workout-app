@@ -49,7 +49,7 @@ export interface CardioBlock {
   visualAssetKey?: string;
 }
 
-/** "short" = a Workday session (~30-40 min); "long" = an Off Day session (~70-90 min). */
+/** "short" = a Workday session (~35-45 min); "long" = an Off Day session (~70-90 min). */
 export type SessionLength = "short" | "long";
 
 /** A fully authored workout in the 32-workout program. */

@@ -8,7 +8,7 @@ and no external service of any kind.
 ## Status: v0.1
 
 All **32 workouts** of the real 8-week program are authored (4 workouts per
-week: 2 short "Workday" sessions of ~30-40 min and 2 longer "Off Day"
+week: 2 short "Workday" sessions of ~35-45 min and 2 longer "Off Day"
 sessions of ~70-90 min). Exercises favor supported machines, cable work,
 leg press/leg curl, hip thrust/glute bridge, and low-impact cardio
 (elliptical, stationary bike, or rowing only), with concise safety notes on
@@ -56,11 +56,17 @@ src/
 Each workout has `warmup`, `strength`, `core`, and an optional `cardio`
 section (see [src/types.ts](src/types.ts)). [src/data/program.ts](src/data/program.ts)
 builds all 32 workouts from a small, reusable exercise catalog, 4 weekly
-session templates (Workday A/B, Off Day A/B), and an 8-week phase table
-that drives sets/reps/rest/cardio duration per week. Exercise `id`s are
-kept stable across the weeks they recur in, so the "last weight" hint on
-the session screen keeps tracking the same movement correctly - keep that
-in mind if you rename or replace a catalog entry.
+session templates (Workday A/B, Off Day A/B), an 8-week phase table that
+drives rest/cardio duration and coaching guidance per week, and a
+role-based training volume table (`STANDARD_VOLUME` / `DELOAD_VOLUME`)
+that sets each exercise's sets/reps by day type (Workday vs. Off Day) and
+role (primary / secondary / isolation / core). Sets/reps are the same
+every normal week - progression happens through heavier logged weight,
+not by changing the prescription - except week 5, which is a deload with
+reduced sets. Exercise `id`s are kept stable across the weeks they recur
+in, so the "last weight" hint on the session screen keeps tracking the
+same movement correctly - keep that in mind if you rename or replace a
+catalog entry.
 
 ## How progression works
 
