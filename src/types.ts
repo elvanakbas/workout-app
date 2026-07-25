@@ -1,10 +1,18 @@
+/** How an exercise's working sets are measured and logged in the session UI. */
+export type MeasurementType = "reps-weight" | "reps-only" | "duration" | "cardio-duration";
+
 /** A single exercise's target prescription within a workout. */
 export interface Exercise {
   id: string;
   name: string;
   targetSets: number;
-  /** Free-form so it can express ranges or time, e.g. "8-10" or "30-45 sec". */
+  /** Free-form so it can express ranges or time, e.g. "8-10", "30-45 sec", or "10-12 per side". */
   targetReps: string;
+  /**
+   * Explicit input model for the active-session screen. Never inferred from
+   * the exercise name in the UI - always authored in program data.
+   */
+  measurementType: MeasurementType;
   restSeconds?: number;
   /** General form/coaching cue, distinct from an injury-prevention safety note. */
   notes?: string;
@@ -20,7 +28,7 @@ export interface Exercise {
    * identifying which reusable image/illustration represents this movement.
    * Multiple exercises can share one key when they are visually identical
    * (e.g. the same movement used as both a warm-up and a working set).
-   * Optional and purely presentational - no image is rendered yet.
+   * Optional and purely presentational.
    */
   visualAssetKey?: string;
 }
@@ -44,6 +52,11 @@ export interface CardioBlock {
   intensity: string;
   /** Whether this block can be skipped without affecting the logged session. */
   optional: boolean;
+  /**
+   * Always "cardio-duration" for cardio blocks. Stored explicitly so the UI
+   * never has to infer input fields from the machine name.
+   */
+  measurementType: "cardio-duration";
   safetyNote?: string;
   /** See `Exercise.visualAssetKey`. */
   visualAssetKey?: string;
@@ -82,15 +95,30 @@ export type ProgramSlot =
   | { order: number; status: "ready"; workout: Workout }
   | { order: number; status: "placeholder" };
 
-/** Weight is always recorded in kilograms. */
+/**
+ * One logged set. Fields used depend on the exercise's `measurementType`:
+ * - reps-weight: `reps` + `weight`
+ * - reps-only: `reps` (weight stays 0)
+ * - duration: `durationSeconds` (reps/weight stay 0)
+ *
+ * Older completed logs only have `reps` + `weight`; that remains valid.
+ */
 export interface SetLog {
   reps: number;
   weight: number;
+  /** Seconds held for duration-based exercises (e.g. planks). */
+  durationSeconds?: number;
 }
 
 export interface ExerciseLog {
   exerciseId: string;
   sets: SetLog[];
+  /**
+   * Per-exercise completion flag used by the active-session draft.
+   * Optional on completed WorkoutLog entries for backward compatibility
+   * with older history that never stored this field.
+   */
+  completed?: boolean;
 }
 
 export type EnergyLevel = "low" | "normal" | "high";
@@ -125,6 +153,21 @@ export interface WorkoutLog {
    * schema to coordinate.
    */
   feedback?: SessionFeedback;
+}
+
+/**
+ * In-progress session state persisted separately from completed history.
+ * One draft per workout ID under `workout-app:v1:active-drafts`.
+ */
+export interface ActiveSessionDraft {
+  /** Schema version for defensive migration of malformed/older drafts. */
+  version: 1;
+  workoutId: string;
+  updatedAt: string;
+  lowEnergyMode: boolean;
+  cardioCompleted: boolean;
+  entries: ExerciseLog[];
+  feedback: SessionFeedback;
 }
 
 export const PROGRAM_LENGTH = 32;

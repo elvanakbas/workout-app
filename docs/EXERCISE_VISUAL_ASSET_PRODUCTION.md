@@ -110,7 +110,7 @@ the full 27-asset registry.
 
 | Filename | Visual Asset Key | Visual Type | Required Position(s) | Safety Emphasis | Dimensions | File Size | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `machine-ab-crunch.webp` | `machine-ab-crunch` | machine | Seated, back/hips supported, controlled trunk flexion, no arm-pulling or bouncing | lower-back | 800x600 | ~44 KB | ready |
+| `pallof-press.webp` | `pallof-press` | two-position | Start (handle at chest) + extended press (arms forward), side-on to cable, resist rotation, neutral spine | lower-back | 800x600 | ~27 KB | ready |
 | `standing-cable-woodchopper.webp` | `standing-cable-woodchopper` | two-position | Start (handle high to one side) + finish (pulled diagonally to opposite hip), stable stance, controlled rotation | lower-back | 800x600 | ~28 KB | ready |
 | `arm-circles.webp` | `arm-circles` | two-position | Arms at shoulder height, small controlled circular-motion arrows, no shrugging | shoulder | 800x600 | ~18 KB | ready |
 | `glute-bridge-activation.webp` | `glute-bridge-activation` | two-position | Bottom (hips down) + top (hips lifted via glute squeeze, no lower-back arch) | lower-back | 800x600 | ~12 KB | ready |
@@ -125,7 +125,7 @@ All 7 files:
 - Follow the same style as Batches 1-3: flat, clean-line
   fitness-handbook illustration, neutral uncluttered gym/exercise
   background, no text/logos/brand names, anatomically plausible posture,
-  muted athletic clothing. `machine-ab-crunch` and
+  muted athletic clothing. `pallof-press` and
   `standing-cable-woodchopper` use a small directional arrow between the
   two positions (not text/lettering) to indicate motion, consistent with
   common fitness-handbook conventions.
@@ -134,7 +134,8 @@ All 7 files:
 
 **27 total registry entries - 27 ready, 0 planned.** All batches
 complete: 6 from Batch 1 + 7 from Batch 2 + 7 from Batch 3 + 7 from
-Batch 4.
+Batch 4. Machine Ab Crunch was later replaced by Cable Pallof Press
+(`pallof-press.webp`) to match gym equipment; registry count remains 27.
 
 ## UI Integration Status
 
@@ -177,7 +178,7 @@ done, a manual check in a mobile-width browser is recommended for:
 - `ActiveSessionScreen` on the same 4 workouts, to confirm the "Show
   visual"/"Hide visual" toggle works for all 27 ready assets and the
   expanded image doesn't crowd the set-logging inputs.
-- The two-position images with a directional arrow (`machine-ab-crunch`,
+- The two-position images with a directional arrow (`pallof-press`,
   `standing-cable-woodchopper`) at phone width, to confirm the arrow
   reads clearly as a motion cue rather than clutter.
 - Overall dark-theme contrast and touch-target size for the toggle

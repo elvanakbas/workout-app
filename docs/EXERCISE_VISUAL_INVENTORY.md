@@ -103,7 +103,7 @@ history continuity in existing `localStorage` logs.
 | `side-plank` | **Side Plank** (normalized, was "Side Plank (Knee-Supported Option Available)"; modification moved to `notes`) | `side-plank` | Mat | Side-lying, propped on forearm | Obliques | 16 | 3, 4, 7, 8, 11, 12, 15, 16, 19, 20, 23, 24, 27, 28, 31, 32 | Single-position | Shoulder |
 | `bird-dog` | Bird Dog | `bird-dog` | Mat | Kneeling (quadruped) | Deep core, glutes | 8 | 3, 7, 11, 15, 19, 23, 27, 31 | Two-position | Lower back |
 | `standing-cable-woodchopper` | Standing Cable Woodchopper (Moderate Load) | `standing-cable-woodchopper` | Cable machine | Standing | Obliques | 8 | 2, 6, 10, 14, 18, 22, 26, 30 | Two-position | Lower back |
-| `machine-ab-crunch` | Machine Ab Crunch (Controlled) | `machine-ab-crunch` | Ab crunch machine | Seated | Abdominals | 8 | 4, 8, 12, 16, 20, 24, 28, 32 | Machine | Lower back |
+| `pallof-press` | Cable Pallof Press | `pallof-press` | Cable station with handle | Standing, side-on to cable | Deep core (anti-rotation) | 8 | 4, 8, 12, 16, 20, 24, 28, 32 | Two-position | Lower back |
 | `forearm-plank` | **Forearm Plank** (normalized, was "Forearm Plank (Knees-Down Option Available)"; modification moved to `notes`) | `forearm-plank` | Mat | Prone, propped on forearms | Deep core | 8 | 2, 6, 10, 14, 18, 22, 26, 30 | Single-position | Lower back |
 
 ## Cardio Movements
@@ -202,7 +202,7 @@ table mirrors it for quick reference:
 | `side-plank` | Side Plank | `side-plank.webp` | single-position | shoulder |
 | `bird-dog` | Bird Dog | `bird-dog.webp` | two-position | lower-back |
 | `standing-cable-woodchopper` | Standing Cable Woodchopper (Moderate Load) | `standing-cable-woodchopper.webp` | two-position | lower-back |
-| `machine-ab-crunch` | Machine Ab Crunch (Controlled) | `machine-ab-crunch.webp` | machine | lower-back |
+| `pallof-press` | Cable Pallof Press | `pallof-press.webp` | two-position | lower-back |
 | `forearm-plank` | Forearm Plank | `forearm-plank.webp` | single-position | lower-back |
 | `arm-circles` | Arm Circles | `arm-circles.webp` | two-position | shoulder |
 | `glute-bridge-activation` | Glute Bridge Activation | `glute-bridge-activation.webp` | two-position | lower-back |

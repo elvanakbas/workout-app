@@ -91,6 +91,37 @@
   font-weight: 600;
 }
 
+.draftHint {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.exerciseHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.completedBadge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  flex-shrink: 0;
+}
+
+.exerciseCompleted {
+  border-color: var(--color-accent);
+}
+
+.completedNote {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
 .exerciseMeta {
   font-size: 13px;
   color: var(--color-text-muted);
@@ -102,9 +133,18 @@
   font-weight: 600;
 }
 
-.setsGrid {
+.setsGridWeight {
   display: grid;
   grid-template-columns: 32px 1fr 1.4fr;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
+}
+
+.setsGridRepsOnly,
+.setsGridDuration {
+  display: grid;
+  grid-template-columns: 32px 1fr;
   gap: var(--space-2);
   align-items: center;
   margin-top: var(--space-2);
@@ -132,6 +172,10 @@
   width: 100%;
 }
 
+.setInput:disabled {
+  opacity: 0.7;
+}
+
 .weightInputWrap {
   display: flex;
   align-items: center;
@@ -142,6 +186,24 @@
   font-size: 12px;
   color: var(--color-text-muted);
   flex-shrink: 0;
+}
+
+.completeExerciseButton,
+.reopenButton {
+  min-height: var(--tap-target);
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  font-weight: 600;
+  font-size: 14px;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.completeExerciseButton {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .checkboxRow {
@@ -206,4 +268,22 @@
   font-weight: 700;
   font-size: 16px;
   cursor: pointer;
+}
+
+.completeButton:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.discardButton {
+  min-height: var(--tap-target);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: var(--space-4);
 }

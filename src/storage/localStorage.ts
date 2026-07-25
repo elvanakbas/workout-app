@@ -1,4 +1,5 @@
 import type { WorkoutLog } from "../types";
+import { clearAllActiveSessionDrafts } from "./activeSessionDraft";
 
 /**
  * All persisted data lives under versioned keys so a future schema change
@@ -7,6 +8,9 @@ import type { WorkoutLog } from "../types";
  * `progress` is a legacy key from an earlier "strict sequential lock"
  * design and is no longer written. It's still removed by `resetAllData`
  * for anyone with that leftover key from before flexible scheduling.
+ *
+ * Active in-progress session drafts live under
+ * `workout-app:v1:active-drafts` (see `activeSessionDraft.ts`).
  */
 const KEYS = {
   progress: "workout-app:v1:progress",
@@ -45,8 +49,9 @@ export function appendLog(log: WorkoutLog): void {
   writeJson(KEYS.logs, logs);
 }
 
-/** Clears all locally stored progress and history. Used for manual testing/reset. */
+/** Clears all locally stored progress, history, and active-session drafts. */
 export function resetAllData(): void {
   localStorage.removeItem(KEYS.progress);
   localStorage.removeItem(KEYS.logs);
+  clearAllActiveSessionDrafts();
 }

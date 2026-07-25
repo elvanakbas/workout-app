@@ -10,7 +10,8 @@
  * calf raise machine, cable face pull, seated hip abduction machine, bird
  * dog, forearm plank), and Batch 4 (machine ab crunch, standing cable
  * woodchopper, arm circles, glute bridge activation, band pull-aparts,
- * leg swings, cat-cow).
+ * leg swings, cat-cow). Machine Ab Crunch was later replaced by Cable
+ * Pallof Press (`pallof-press`) to match gym equipment availability.
  *
  * Source of truth for how this list was derived: `docs/EXERCISE_VISUAL_INVENTORY.md`.
  * Asset production tracking: `docs/EXERCISE_VISUAL_ASSET_PRODUCTION.md`.
@@ -215,13 +216,13 @@ export const EXERCISE_VISUALS: VisualAssetEntry[] = [
     status: "ready"
   },
   {
-    visualAssetKey: "machine-ab-crunch",
-    displayName: "Machine Ab Crunch (Controlled)",
-    filename: "machine-ab-crunch.webp",
-    visualType: "machine",
-    altText: "Person seated at an ab crunch machine curling forward against the pad.",
+    visualAssetKey: "pallof-press",
+    displayName: "Cable Pallof Press",
+    filename: "pallof-press.webp",
+    visualType: "two-position",
+    altText: "Person standing side-on to a cable machine shown holding the handle at the chest, then pressing it straight forward while resisting rotation.",
     safetyEmphasis: "lower-back",
-    assetPath: "/exercise-visuals/machine-ab-crunch.webp",
+    assetPath: "/exercise-visuals/pallof-press.webp",
     status: "ready"
   },
   {

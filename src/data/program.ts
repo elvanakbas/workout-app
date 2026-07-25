@@ -32,46 +32,59 @@ import {
 // the runtime validator in `src/lib/visualAssetValidation.ts`. Several
 // entries share a key with another entry/warm-up/cardio block on purpose -
 // see `src/data/exerciseVisuals.ts` for the full reuse mapping.
-type CatalogEntry = Pick<Exercise, "id" | "name"> & {
+/**
+ * Catalog entries carry an explicit `measurementType` so the session UI never
+ * has to guess input fields from the exercise name. Optional `repsLabel`
+ * clarifies unilateral/alternating targets in the prescribed `targetReps`.
+ */
+type CatalogEntry = Pick<Exercise, "id" | "name" | "measurementType"> & {
   safetyNote?: string;
   notes?: string;
   visualAssetKey: string;
+  /** How to phrase rep targets for alternating / unilateral movements. */
+  repsLabel?: "total" | "each-side" | "per-side";
 };
 
 const STRENGTH: Record<string, CatalogEntry> = {
   chestPress: {
     id: "chest-press-machine",
     name: "Chest Press Machine",
+    measurementType: "reps-weight",
     safetyNote: "Shoulder-sensitive: keep shoulder blades back and down; don't drop elbows below shoulder height.",
     visualAssetKey: "chest-press-machine"
   },
   legPress: {
     id: "leg-press",
     name: "Leg Press",
+    measurementType: "reps-weight",
     safetyNote: "Knee-sensitive: use a moderate range of motion and avoid locking the knees out hard at the top.",
     visualAssetKey: "leg-press"
   },
   seatedCableRow: {
     id: "seated-cable-row",
     name: "Seated Cable Row",
+    measurementType: "reps-weight",
     safetyNote: "Shoulder-sensitive: lead with the elbows and avoid shrugging the shoulders up.",
     visualAssetKey: "seated-cable-row"
   },
   legCurl: {
     id: "leg-curl-machine",
     name: "Seated Leg Curl (Machine)",
+    measurementType: "reps-weight",
     notes: "If a seated leg curl machine isn't available, a lying leg curl machine works the same muscles.",
     visualAssetKey: "seated-leg-curl"
   },
   latPulldown: {
     id: "lat-pulldown",
     name: "Lat Pulldown (Cable)",
+    measurementType: "reps-weight",
     safetyNote: "Shoulder-sensitive: control the negative and avoid letting the shoulders shrug at the top.",
     visualAssetKey: "lat-pulldown"
   },
   hipThrust: {
     id: "hip-thrust-glute-bridge",
     name: "Hip Thrust Machine (Pad-Supported)",
+    measurementType: "reps-weight",
     notes: "If a hip thrust machine isn't available, substitute a pad-supported glute bridge using the same setup.",
     safetyNote: "Lower-back-sensitive: keep ribs down and avoid overarching the lower back at the top.",
     visualAssetKey: "hip-thrust-machine"
@@ -79,35 +92,41 @@ const STRENGTH: Record<string, CatalogEntry> = {
   chestSupportedRow: {
     id: "chest-supported-row",
     name: "Chest-Supported Row (Machine)",
+    measurementType: "reps-weight",
     safetyNote: "Shoulder-sensitive: keep the chest on the pad and avoid jerking the weight.",
     visualAssetKey: "chest-supported-row"
   },
   legExtension: {
     id: "leg-extension-machine",
     name: "Leg Extension (Machine)",
+    measurementType: "reps-weight",
     safetyNote: "Knee-sensitive: avoid a hard, heavy lockout at the top of the movement.",
     visualAssetKey: "leg-extension-machine"
   },
   cableLateralRaise: {
     id: "cable-lateral-raise",
     name: "Cable Lateral Raise (Light-Moderate)",
+    measurementType: "reps-weight",
     safetyNote: "Shoulder-sensitive: use light weight and a controlled tempo; avoid shrugging.",
     visualAssetKey: "cable-lateral-raise"
   },
   seatedCalfRaise: {
     id: "seated-calf-raise-machine",
     name: "Seated Calf Raise (Machine)",
+    measurementType: "reps-weight",
     visualAssetKey: "seated-calf-raise-machine"
   },
   cableFacePull: {
     id: "cable-face-pull",
     name: "Cable Face Pull (Light)",
+    measurementType: "reps-weight",
     safetyNote: "Good for shoulder health: keep the load light and pull toward eye level with control.",
     visualAssetKey: "cable-face-pull"
   },
   hipAbduction: {
     id: "hip-abduction-machine",
     name: "Seated Hip Abduction Machine",
+    measurementType: "reps-weight",
     notes: "If unavailable, a standing cable hip abduction is an equivalent substitute.",
     visualAssetKey: "seated-hip-abduction-machine"
   }
@@ -117,43 +136,57 @@ const CORE: Record<string, CatalogEntry> = {
   deadBug: {
     id: "dead-bug",
     name: "Dead Bug",
+    measurementType: "reps-only",
+    repsLabel: "each-side",
     safetyNote: "Lower-back-sensitive: keep the low back gently pressed down throughout and move slowly.",
     visualAssetKey: "dead-bug"
   },
   cableCrunch: {
     id: "cable-crunch-kneeling",
     name: "Cable Crunch (Kneeling)",
+    measurementType: "reps-weight",
     safetyNote: "Lower-back-sensitive: control the movement and avoid yanking with a heavy load.",
     visualAssetKey: "cable-crunch-kneeling"
   },
   sidePlank: {
     id: "side-plank",
     name: "Side Plank",
-    notes: "Beginner modification: bend the knees and support on the forearm and knee instead of the feet.",
+    measurementType: "duration",
+    notes: "Beginner modification: bend the knees and support on the forearm and knee instead of the feet. Hold each side as its own set, or split the target time evenly across sides.",
     safetyNote: "Shoulder-sensitive: stack the shoulders and don't sink into the supporting shoulder.",
     visualAssetKey: "side-plank"
   },
   birdDog: {
     id: "bird-dog",
     name: "Bird Dog",
+    measurementType: "reps-only",
+    repsLabel: "each-side",
     safetyNote: "Lower-back-sensitive: move slowly and keep the hips level; don't arch the low back.",
     visualAssetKey: "bird-dog"
   },
   woodchopper: {
     id: "standing-cable-woodchopper",
     name: "Standing Cable Woodchopper (Moderate Load)",
+    measurementType: "reps-weight",
+    repsLabel: "each-side",
     safetyNote: "Lower-back-sensitive: rotate through the torso; don't yank the load with the lower back.",
     visualAssetKey: "standing-cable-woodchopper"
   },
-  machineAbCrunch: {
-    id: "machine-ab-crunch",
-    name: "Machine Ab Crunch (Controlled)",
-    safetyNote: "Lower-back-sensitive: avoid using momentum; control the full range of motion.",
-    visualAssetKey: "machine-ab-crunch"
+  pallofPress: {
+    id: "pallof-press",
+    name: "Cable Pallof Press",
+    measurementType: "reps-weight",
+    repsLabel: "per-side",
+    notes:
+      "Anti-rotation core stability. Cable station with a handle at roughly chest height. Press straight forward and resist rotation toward the cable. Use a light, controlled load.",
+    safetyNote:
+      "Lower-back-sensitive: set the cable around chest height, stand side-on, keep ribs stacked over the pelvis, and press the handle straight forward without rotating. Stop if it causes back or radiating leg pain.",
+    visualAssetKey: "pallof-press"
   },
   forearmPlank: {
     id: "forearm-plank",
     name: "Forearm Plank",
+    measurementType: "duration",
     notes: "Beginner modification: lower the knees to the ground while keeping the torso straight.",
     safetyNote: "Lower-back-sensitive: keep a neutral spine; don't let the hips sag or pike up.",
     visualAssetKey: "forearm-plank"
@@ -299,7 +332,7 @@ const STANDARD_VOLUME: WeekVolume = {
     secondary: { sets: 3, reps: "12" },
     isolation: { sets: 3, reps: "12-15" }
   },
-  core: { sets: 3, reps: "30-45 sec / 12-15 reps" }
+  core: { sets: 3, reps: "12-15" }
 };
 
 /** Week 5 deload: primary lifts stay at 3 sets; accessories/isolation/core drop to 2. */
@@ -314,11 +347,38 @@ const DELOAD_VOLUME: WeekVolume = {
     secondary: { sets: 2, reps: "12-15" },
     isolation: { sets: 2, reps: "12-15" }
   },
-  core: { sets: 2, reps: "30 sec / 12 reps" }
+  core: { sets: 2, reps: "12" }
 };
 
 function getWeekVolume(week: number): WeekVolume {
   return week === 5 ? DELOAD_VOLUME : STANDARD_VOLUME;
+}
+
+/**
+ * Measurement-aware target strings for core work. Strength roles keep using
+ * the volume table's `reps` field directly.
+ */
+function resolveCoreTargetReps(entry: CatalogEntry, week: number): string {
+  const isDeload = week === 5;
+  switch (entry.measurementType) {
+    case "duration":
+      return isDeload ? "30 sec" : "30-45 sec";
+    case "reps-only":
+      if (entry.repsLabel === "each-side") {
+        return isDeload ? "12 reps each side" : "12-15 reps each side";
+      }
+      return isDeload ? "12 reps" : "12-15 reps";
+    case "reps-weight":
+      if (entry.repsLabel === "per-side") {
+        return isDeload ? "10 per side" : "10-12 per side";
+      }
+      if (entry.repsLabel === "each-side") {
+        return isDeload ? "12 each side" : "12-15 each side";
+      }
+      return isDeload ? "12" : "12-15";
+    default:
+      return getWeekVolume(week).core.reps;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -341,6 +401,7 @@ function buildExercise(
     name: entry.name,
     targetSets: volume.sets,
     targetReps: volume.reps,
+    measurementType: entry.measurementType,
     restSeconds: phase.strengthRestSeconds,
     optional,
     notes: entry.notes,
@@ -351,12 +412,16 @@ function buildExercise(
 
 function buildCoreExercise(entry: CatalogEntry, week: number, phase: PhaseConfig, optional: boolean): Exercise {
   const volume = getWeekVolume(week).core;
+  // Pallof Press uses a slightly longer rest (~45-60s) than short plank holds.
+  const restSeconds =
+    entry.id === "pallof-press" ? (week === 5 ? 45 : 60) : phase.coreRestSeconds;
   return {
     id: entry.id,
     name: entry.name,
     targetSets: volume.sets,
-    targetReps: volume.reps,
-    restSeconds: phase.coreRestSeconds,
+    targetReps: resolveCoreTargetReps(entry, week),
+    measurementType: entry.measurementType,
+    restSeconds,
     optional,
     notes: entry.notes,
     safetyNote: entry.safetyNote,
@@ -379,6 +444,7 @@ function cardioBlock(machine: CardioMachine, phase: PhaseConfig, isShort: boolea
     durationMinutes: isShort ? phase.cardioShortMinutes : phase.cardioLongMinutes,
     intensity: phase.cardioIntensity,
     optional: isShort,
+    measurementType: "cardio-duration",
     safetyNote:
       machine === "rowing"
         ? "Lower-back and shoulder-sensitive: sit tall and drive the movement from the legs first; avoid rounding the lower back at the catch."
@@ -513,7 +579,7 @@ function buildWorkout(order: number, week: number, variant: Variant): Workout {
           core: [
             buildCoreExercise(CORE.deadBug, week, phase, false),
             buildCoreExercise(CORE.sidePlank, week, phase, false),
-            buildCoreExercise(CORE.machineAbCrunch, week, phase, true)
+            buildCoreExercise(CORE.pallofPress, week, phase, true)
           ],
           cardio: cardioBlock("elliptical", phase, isShort)
         };

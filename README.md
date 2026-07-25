@@ -102,9 +102,16 @@ console on the app's page and run:
 ```js
 localStorage.removeItem("workout-app:v1:progress");
 localStorage.removeItem("workout-app:v1:logs");
+localStorage.removeItem("workout-app:v1:active-drafts");
 ```
 
 then reload the page.
+
+Active in-progress sessions are stored separately under
+`workout-app:v1:active-drafts` (one draft per workout ID) so you can leave
+a session, refresh, or reopen the PWA and pick up where you left off.
+Completing a workout writes a normal history log and clears only that
+workout's draft.
 
 ## Installing as an app (PWA)
 

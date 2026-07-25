@@ -1,23 +1,33 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getWorkoutById } from "../data/program";
 import { getLastWeightForExercise } from "../lib/history";
+import {
+  buildInitialEntries,
+  isExerciseEntryEmpty,
+  measurementFieldsFor,
+  reconcileEntries
+} from "../lib/sessionTracking";
+import {
+  clearActiveSessionDraft,
+  DEFAULT_FEEDBACK,
+  getActiveSessionDraft,
+  saveActiveSessionDraft
+} from "../storage/activeSessionDraft";
 import { useAppData } from "../state/AppDataContext";
 import ExerciseVisual from "../components/ExerciseVisual";
-import type { EnergyLevel, Exercise, ExerciseLog, SessionFeedback, SetLog, WorkoutLog } from "../types";
+import type {
+  EnergyLevel,
+  Exercise,
+  ExerciseLog,
+  SessionFeedback,
+  SetLog,
+  WorkoutLog
+} from "../types";
 import styles from "./ActiveSessionScreen.module.css";
 
 const LOW_ENERGY_MAX_SETS = 2;
 const ENERGY_OPTIONS: EnergyLevel[] = ["low", "normal", "high"];
-
-const DEFAULT_FEEDBACK: SessionFeedback = {
-  difficulty: 5,
-  energy: "normal",
-  lowerBackPain: 0,
-  kneePain: 0,
-  shoulderPain: 0,
-  note: ""
-};
 
 function applyLowEnergy(exercises: Exercise[], lowEnergyMode: boolean): Exercise[] {
   if (!lowEnergyMode) return exercises;
@@ -29,31 +39,63 @@ function applyLowEnergy(exercises: Exercise[], lowEnergyMode: boolean): Exercise
     }));
 }
 
-function buildInitialEntries(exercises: Exercise[]): ExerciseLog[] {
-  return exercises.map((exercise) => ({
-    exerciseId: exercise.id,
-    sets: Array.from({ length: exercise.targetSets }, () => ({ reps: 0, weight: 0 }))
-  }));
-}
-
 export default function ActiveSessionScreen() {
   const { workoutId } = useParams<{ workoutId: string }>();
   const navigate = useNavigate();
   const { logs, completeWorkout } = useAppData();
   const workout = workoutId ? getWorkoutById(workoutId) : undefined;
 
+  const [hydrated, setHydrated] = useState(false);
   const [lowEnergyMode, setLowEnergyMode] = useState(false);
   const [cardioCompleted, setCardioCompleted] = useState(false);
   const [feedback, setFeedback] = useState<SessionFeedback>(DEFAULT_FEEDBACK);
+  const [entries, setEntries] = useState<ExerciseLog[]>([]);
+  const [completingWorkout, setCompletingWorkout] = useState(false);
+  const completingRef = useRef(false);
+
+  const canUseLowEnergyMode = workout?.length === "short";
 
   const loggableExercises = useMemo(() => {
     if (!workout) return [];
     return applyLowEnergy([...workout.strength, ...workout.core], lowEnergyMode);
   }, [workout, lowEnergyMode]);
 
-  const [entries, setEntries] = useState<ExerciseLog[]>(() => buildInitialEntries(loggableExercises));
+  // Restore draft (or seed empty entries) once per workout id.
+  useEffect(() => {
+    if (!workout) return;
+    const shortSession = workout.length === "short";
+    const draft = getActiveSessionDraft(workout.id);
+    if (draft) {
+      const mode = shortSession ? draft.lowEnergyMode : false;
+      const exercises = applyLowEnergy([...workout.strength, ...workout.core], mode);
+      setLowEnergyMode(mode);
+      setCardioCompleted(draft.cardioCompleted);
+      setFeedback({ ...DEFAULT_FEEDBACK, ...draft.feedback, note: draft.feedback.note ?? "" });
+      setEntries(reconcileEntries(exercises, draft.entries));
+    } else {
+      setLowEnergyMode(false);
+      setCardioCompleted(false);
+      setFeedback({ ...DEFAULT_FEEDBACK });
+      setEntries(buildInitialEntries(applyLowEnergy([...workout.strength, ...workout.core], false)));
+    }
+    setHydrated(true);
+    // Intentionally only re-hydrate when the workout identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workout?.id]);
 
-  const canUseLowEnergyMode = workout?.length === "short";
+  // Auto-save draft whenever session state changes.
+  useEffect(() => {
+    if (!workout || !hydrated || completingRef.current) return;
+    saveActiveSessionDraft({
+      version: 1,
+      workoutId: workout.id,
+      updatedAt: new Date().toISOString(),
+      lowEnergyMode: canUseLowEnergyMode ? lowEnergyMode : false,
+      cardioCompleted,
+      entries,
+      feedback
+    });
+  }, [workout, hydrated, lowEnergyMode, cardioCompleted, entries, feedback, canUseLowEnergyMode]);
 
   if (!workout) {
     return (
@@ -66,11 +108,17 @@ export default function ActiveSessionScreen() {
 
   const toggleLowEnergyMode = () => {
     const next = !lowEnergyMode;
+    const nextExercises = applyLowEnergy([...workout.strength, ...workout.core], next);
     setLowEnergyMode(next);
-    setEntries(buildInitialEntries(applyLowEnergy([...workout.strength, ...workout.core], next)));
+    setEntries((prev) => reconcileEntries(nextExercises, prev));
   };
 
-  const updateSet = (exerciseId: string, setIndex: number, field: keyof SetLog, value: number) => {
+  const updateSet = (
+    exerciseId: string,
+    setIndex: number,
+    field: keyof SetLog,
+    value: number
+  ) => {
     setEntries((prev) =>
       prev.map((entry) =>
         entry.exerciseId !== exerciseId
@@ -85,18 +133,57 @@ export default function ActiveSessionScreen() {
     );
   };
 
+  const markExerciseCompleted = (exercise: Exercise) => {
+    const entry = entries.find((e) => e.exerciseId === exercise.id);
+    if (isExerciseEntryEmpty(entry, exercise.measurementType)) {
+      const ok = window.confirm(
+        `No values entered for ${exercise.name}. Mark it complete anyway?`
+      );
+      if (!ok) return;
+    }
+    setEntries((prev) =>
+      prev.map((e) => (e.exerciseId === exercise.id ? { ...e, completed: true } : e))
+    );
+  };
+
+  const reopenExercise = (exerciseId: string) => {
+    setEntries((prev) =>
+      prev.map((e) => (e.exerciseId === exerciseId ? { ...e, completed: false } : e))
+    );
+  };
+
   const updateFeedback = <K extends keyof SessionFeedback>(field: K, value: SessionFeedback[K]) => {
     setFeedback((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleComplete = () => {
+  const handleDiscardDraft = () => {
+    const ok = window.confirm(
+      "Discard this workout draft? All entered reps, weights, durations, and completion marks for this session will be cleared."
+    );
+    if (!ok) return;
+    clearActiveSessionDraft(workout.id);
+    setLowEnergyMode(false);
+    setCardioCompleted(false);
+    setFeedback({ ...DEFAULT_FEEDBACK });
+    setEntries(buildInitialEntries(applyLowEnergy([...workout.strength, ...workout.core], false)));
+  };
+
+  const handleCompleteWorkout = () => {
+    if (completingRef.current) return;
+    completingRef.current = true;
+    setCompletingWorkout(true);
+
     const log: WorkoutLog = {
       id: `${workout.id}-${Date.now()}`,
       workoutId: workout.id,
       order: workout.order,
       workoutTitle: workout.title,
       completedAt: new Date().toISOString(),
-      entries,
+      entries: entries.map((entry) => ({
+        exerciseId: entry.exerciseId,
+        sets: entry.sets,
+        completed: entry.completed
+      })),
       cardioCompleted: workout.cardio ? cardioCompleted : undefined,
       lowEnergyMode: canUseLowEnergyMode ? lowEnergyMode : undefined,
       feedback: {
@@ -104,9 +191,19 @@ export default function ActiveSessionScreen() {
         note: feedback.note?.trim() ? feedback.note.trim() : undefined
       }
     };
+
     completeWorkout(log);
+    clearActiveSessionDraft(workout.id);
     navigate("/", { replace: true });
   };
+
+  if (!hydrated) {
+    return (
+      <div className={styles.screen}>
+        <p className={styles.exerciseMeta}>Loading session…</p>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.screen}>
@@ -115,6 +212,7 @@ export default function ActiveSessionScreen() {
           &larr; {workout.title}
         </Link>
         <h1 className={styles.title}>Log Your Sets</h1>
+        <p className={styles.draftHint}>Progress is saved automatically. Leave and return anytime.</p>
       </header>
 
       {canUseLowEnergyMode ? (
@@ -141,51 +239,126 @@ export default function ActiveSessionScreen() {
         {loggableExercises.map((exercise) => {
           const entry = entries.find((e) => e.exerciseId === exercise.id);
           const lastWeight = getLastWeightForExercise(logs, exercise.id);
+          const fields = measurementFieldsFor(exercise.measurementType);
+          const isCompleted = entry?.completed === true;
+          const gridClass = fields.showWeight
+            ? styles.setsGridWeight
+            : fields.showDurationSeconds
+              ? styles.setsGridDuration
+              : styles.setsGridRepsOnly;
+
           return (
-            <section key={exercise.id} className={styles.exercise}>
-              <h2 className={styles.exerciseName}>{exercise.name}</h2>
+            <section
+              key={exercise.id}
+              className={isCompleted ? `${styles.exercise} ${styles.exerciseCompleted}` : styles.exercise}
+            >
+              <div className={styles.exerciseHeaderRow}>
+                <h2 className={styles.exerciseName}>{exercise.name}</h2>
+                {isCompleted ? <span className={styles.completedBadge}>Completed</span> : null}
+              </div>
               <p className={styles.exerciseMeta}>
                 Target: {exercise.targetSets} sets x {exercise.targetReps}
               </p>
               <ExerciseVisual visualAssetKey={exercise.visualAssetKey} variant="session" />
-              {lastWeight !== undefined ? (
+              {fields.showWeight && lastWeight !== undefined ? (
                 <p className={styles.lastWeight}>Last: {lastWeight} kg</p>
               ) : null}
-              <div className={styles.setsGrid}>
+
+              {isCompleted ? (
+                <p className={styles.completedNote}>
+                  Exercise marked complete. Full workout is not finished until you tap Complete Workout
+                  below.
+                </p>
+              ) : null}
+
+              <div className={gridClass} aria-disabled={isCompleted}>
                 <span className={styles.setsGridLabel}>Set</span>
-                <span className={styles.setsGridLabel}>Reps</span>
-                <span className={styles.setsGridLabel}>Weight (kg)</span>
-                {entry?.sets.map((set, setIndex) => (
+                {fields.showReps ? <span className={styles.setsGridLabel}>Reps</span> : null}
+                {fields.showWeight ? <span className={styles.setsGridLabel}>Weight (kg)</span> : null}
+                {fields.showDurationSeconds ? (
+                  <span className={styles.setsGridLabel}>Duration (sec)</span>
+                ) : null}
+
+                {(entry?.sets ?? []).map((set, setIndex) => (
                   <Fragment key={setIndex}>
                     <span className={styles.setNumber}>{setIndex + 1}</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      className={styles.setInput}
-                      value={set.reps === 0 ? "" : set.reps}
-                      placeholder="0"
-                      onChange={(e) =>
-                        updateSet(exercise.id, setIndex, "reps", Number(e.target.value) || 0)
-                      }
-                    />
-                    <div className={styles.weightInputWrap}>
+                    {fields.showReps ? (
                       <input
                         type="number"
-                        inputMode="decimal"
+                        inputMode="numeric"
                         min={0}
                         className={styles.setInput}
-                        value={set.weight === 0 ? "" : set.weight}
-                        placeholder={lastWeight !== undefined ? String(lastWeight) : "0"}
+                        value={set.reps === 0 ? "" : set.reps}
+                        placeholder="0"
+                        disabled={isCompleted}
+                        aria-label={`${exercise.name} set ${setIndex + 1} reps`}
                         onChange={(e) =>
-                          updateSet(exercise.id, setIndex, "weight", Number(e.target.value) || 0)
+                          updateSet(exercise.id, setIndex, "reps", Number(e.target.value) || 0)
                         }
                       />
-                      <span className={styles.weightUnit}>kg</span>
-                    </div>
+                    ) : null}
+                    {fields.showWeight ? (
+                      <div className={styles.weightInputWrap}>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          className={styles.setInput}
+                          value={set.weight === 0 ? "" : set.weight}
+                          placeholder={lastWeight !== undefined ? String(lastWeight) : "0"}
+                          disabled={isCompleted}
+                          aria-label={`${exercise.name} set ${setIndex + 1} weight kg`}
+                          onChange={(e) =>
+                            updateSet(exercise.id, setIndex, "weight", Number(e.target.value) || 0)
+                          }
+                        />
+                        <span className={styles.weightUnit}>kg</span>
+                      </div>
+                    ) : null}
+                    {fields.showDurationSeconds ? (
+                      <div className={styles.weightInputWrap}>
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          className={styles.setInput}
+                          value={!set.durationSeconds ? "" : set.durationSeconds}
+                          placeholder="0"
+                          disabled={isCompleted}
+                          aria-label={`${exercise.name} set ${setIndex + 1} duration seconds`}
+                          onChange={(e) =>
+                            updateSet(
+                              exercise.id,
+                              setIndex,
+                              "durationSeconds",
+                              Number(e.target.value) || 0
+                            )
+                          }
+                        />
+                        <span className={styles.weightUnit}>sec</span>
+                      </div>
+                    ) : null}
                   </Fragment>
                 ))}
               </div>
+
+              {isCompleted ? (
+                <button
+                  type="button"
+                  className={styles.reopenButton}
+                  onClick={() => reopenExercise(exercise.id)}
+                >
+                  Edit Exercise
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.completeExerciseButton}
+                  onClick={() => markExerciseCompleted(exercise)}
+                >
+                  Complete Exercise
+                </button>
+              )}
             </section>
           );
         })}
@@ -206,7 +379,7 @@ export default function ActiveSessionScreen() {
               checked={cardioCompleted}
               onChange={(e) => setCardioCompleted(e.target.checked)}
             />
-            I completed the cardio block
+            I completed the cardio block ({workout.cardio.durationMinutes} min)
           </label>
         </section>
       ) : null}
@@ -286,8 +459,17 @@ export default function ActiveSessionScreen() {
         </label>
       </section>
 
-      <button type="button" className={styles.completeButton} onClick={handleComplete}>
-        Complete Workout
+      <button
+        type="button"
+        className={styles.completeButton}
+        onClick={handleCompleteWorkout}
+        disabled={completingWorkout}
+      >
+        {completingWorkout ? "Saving…" : "Complete Workout"}
+      </button>
+
+      <button type="button" className={styles.discardButton} onClick={handleDiscardDraft}>
+        Discard Workout Draft
       </button>
     </div>
   );
