@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "validate:session": "npx tsx scripts/validate-session.ts",
+    "validate:phase2": "npx tsx scripts/validate-session.ts",
     "validate:v2": "npx tsx scripts/validate-v2-program.ts"
   },
   "dependencies": {

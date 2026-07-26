@@ -203,7 +203,7 @@ export interface WorkoutLog {
 
 /**
  * In-progress session state persisted separately from completed history.
- * One draft per workout ID under `workout-app:v1:active-drafts`.
+ * One draft per workout ID under `workout-app:v2:active-drafts`.
  */
 export interface ActiveSessionDraft {
   /** Schema version for defensive migration of malformed/older drafts. */

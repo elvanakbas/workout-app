@@ -4,8 +4,16 @@ import type { ActiveSessionDraft, ExerciseLog, SessionFeedback } from "../types"
  * Versioned active-session draft store. Separate from completed WorkoutLog
  * history (`workout-app:v1:logs`) so unfinished sessions survive navigation,
  * refresh, and PWA reopen without polluting completed history.
+ *
+ * Storage key is Phase 2: `workout-app:v2:active-drafts`. Valid drafts from
+ * the legacy `workout-app:v1:active-drafts` key are migrated once on first
+ * read so an in-progress gym session is not lost after the Phase 2 upgrade.
  */
-const DRAFTS_KEY = "workout-app:v1:active-drafts";
+const DRAFTS_KEY = "workout-app:v2:active-drafts";
+const LEGACY_DRAFTS_KEY = "workout-app:v1:active-drafts";
+
+/** Current ActiveSessionDraft.document schema version accepted by normalize. */
+export const ACTIVE_DRAFT_SCHEMA_VERSION = 1 as const;
 
 type DraftMap = Record<string, ActiveSessionDraft>;
 
@@ -18,9 +26,11 @@ const DEFAULT_FEEDBACK: SessionFeedback = {
   note: ""
 };
 
-function readDraftMap(): DraftMap {
+let legacyMigrationAttempted = false;
+
+function readRawMap(key: string): DraftMap {
   try {
-    const raw = localStorage.getItem(DRAFTS_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
@@ -38,11 +48,54 @@ function writeDraftMap(map: DraftMap): void {
   }
 }
 
+/**
+ * One-time copy of valid legacy v1 drafts into the v2 key. Malformed legacy
+ * entries are skipped (fail-safe). Legacy key is removed after a successful
+ * migration attempt so we do not keep rewriting history-adjacent storage.
+ */
+function migrateLegacyDraftsIfNeeded(): void {
+  if (legacyMigrationAttempted) return;
+  legacyMigrationAttempted = true;
+
+  let legacyRaw: string | null = null;
+  try {
+    legacyRaw = localStorage.getItem(LEGACY_DRAFTS_KEY);
+  } catch {
+    return;
+  }
+  if (!legacyRaw) return;
+
+  const legacyMap = readRawMap(LEGACY_DRAFTS_KEY);
+  const current = readRawMap(DRAFTS_KEY);
+  let changed = false;
+
+  for (const [workoutId, raw] of Object.entries(legacyMap)) {
+    if (current[workoutId]) continue;
+    const normalized = normalizeActiveSessionDraft(raw, workoutId);
+    if (!normalized) continue;
+    current[workoutId] = normalized;
+    changed = true;
+  }
+
+  if (changed) writeDraftMap(current);
+
+  try {
+    localStorage.removeItem(LEGACY_DRAFTS_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function readDraftMap(): DraftMap {
+  migrateLegacyDraftsIfNeeded();
+  return readRawMap(DRAFTS_KEY);
+}
+
 /** Defensively validate and normalize a stored draft; return null if unusable. */
 export function normalizeActiveSessionDraft(raw: unknown, expectedWorkoutId: string): ActiveSessionDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const candidate = raw as Partial<ActiveSessionDraft>;
-  if (candidate.version !== 1) return null;
+  if (candidate.version !== ACTIVE_DRAFT_SCHEMA_VERSION) return null;
   if (candidate.workoutId !== expectedWorkoutId) return null;
   if (!Array.isArray(candidate.entries)) return null;
 
@@ -90,7 +143,7 @@ export function normalizeActiveSessionDraft(raw: unknown, expectedWorkoutId: str
   };
 
   return {
-    version: 1,
+    version: ACTIVE_DRAFT_SCHEMA_VERSION,
     workoutId: expectedWorkoutId,
     updatedAt: typeof candidate.updatedAt === "string" ? candidate.updatedAt : new Date().toISOString(),
     lowEnergyMode: candidate.lowEnergyMode === true,
@@ -106,11 +159,17 @@ function clamp(value: number, min: number, max: number): number {
 
 export function getActiveSessionDraft(workoutId: string): ActiveSessionDraft | null {
   const map = readDraftMap();
-  return normalizeActiveSessionDraft(map[workoutId], workoutId);
+  const normalized = normalizeActiveSessionDraft(map[workoutId], workoutId);
+  if (map[workoutId] !== undefined && normalized === null) {
+    // Malformed or older schema for this workout only - drop just that entry.
+    delete map[workoutId];
+    writeDraftMap(map);
+  }
+  return normalized;
 }
 
 export function saveActiveSessionDraft(draft: ActiveSessionDraft): void {
-  if (draft.version !== 1 || !draft.workoutId) return;
+  if (draft.version !== ACTIVE_DRAFT_SCHEMA_VERSION || !draft.workoutId) return;
   const map = readDraftMap();
   map[draft.workoutId] = {
     ...draft,
@@ -132,22 +191,31 @@ export function clearAllActiveSessionDrafts(): void {
   } catch {
     // ignore
   }
+  try {
+    localStorage.removeItem(LEGACY_DRAFTS_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export function listActiveSessionDraftWorkoutIds(): string[] {
+  return Object.keys(readDraftMap());
 }
 
 export function createEmptyDraft(
   workoutId: string,
   entries: ExerciseLog[],
-  options?: { lowEnergyMode?: boolean }
+  options?: { lowEnergyMode?: boolean; cardioCompleted?: boolean }
 ): ActiveSessionDraft {
   return {
-    version: 1,
+    version: ACTIVE_DRAFT_SCHEMA_VERSION,
     workoutId,
     updatedAt: new Date().toISOString(),
     lowEnergyMode: options?.lowEnergyMode === true,
-    cardioCompleted: false,
+    cardioCompleted: options?.cardioCompleted === true,
     entries,
     feedback: { ...DEFAULT_FEEDBACK }
   };
 }
 
-export { DEFAULT_FEEDBACK, DRAFTS_KEY };
+export { DEFAULT_FEEDBACK, DRAFTS_KEY, LEGACY_DRAFTS_KEY };
