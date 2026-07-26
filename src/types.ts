@@ -1,6 +1,33 @@
 /** How an exercise's working sets are measured and logged in the session UI. */
 export type MeasurementType = "reps-weight" | "reps-only" | "duration" | "cardio-duration";
 
+/** Direct muscle groups used for weekly volume reporting and workout labels. */
+export type MuscleGroup =
+  | "chest"
+  | "back"
+  | "shoulders"
+  | "biceps"
+  | "triceps"
+  | "quadriceps"
+  | "hamstrings"
+  | "glutes"
+  | "calves"
+  | "core";
+
+export type ExerciseRole = "primary" | "secondary" | "isolation" | "core" | "cardio";
+
+export type EquipmentCategory =
+  | "machine"
+  | "cable"
+  | "dumbbell"
+  | "bodyweight"
+  | "cardio-machine";
+
+/** Upper/Lower split day identity within the weekly 4-session cycle. */
+export type FocusArea = "upper" | "lower";
+
+export type WorkoutVariant = "upper-a" | "lower-a" | "upper-b" | "lower-b";
+
 /** A single exercise's target prescription within a workout. */
 export interface Exercise {
   id: string;
@@ -13,6 +40,15 @@ export interface Exercise {
    * the exercise name in the UI - always authored in program data.
    */
   measurementType: MeasurementType;
+  role: ExerciseRole;
+  equipmentCategory: EquipmentCategory;
+  /** Muscles this prescription counts toward for direct weekly volume. */
+  primaryMuscles: MuscleGroup[];
+  secondaryMuscles?: MuscleGroup[];
+  /** True for unilateral / per-side prescriptions (Pallof, BSS, Dead Bug, etc.). */
+  unilateral?: boolean;
+  /** Display label for the target unit, e.g. "per side". */
+  targetUnitLabel?: string;
   restSeconds?: number;
   /** General form/coaching cue, distinct from an injury-prevention safety note. */
   notes?: string;
@@ -26,9 +62,7 @@ export interface Exercise {
   /**
    * Stable key into the visual asset registry (`src/data/exerciseVisuals.ts`)
    * identifying which reusable image/illustration represents this movement.
-   * Multiple exercises can share one key when they are visually identical
-   * (e.g. the same movement used as both a warm-up and a working set).
-   * Optional and purely presentational.
+   * Optional - V2 may reference planned/missing keys until the visual phase.
    */
   visualAssetKey?: string;
 }
@@ -57,6 +91,10 @@ export interface CardioBlock {
    * never has to infer input fields from the machine name.
    */
   measurementType: "cardio-duration";
+  role: "cardio";
+  equipmentCategory: "cardio-machine";
+  /** Alternate machine the user may substitute (e.g. bike instead of elliptical). */
+  alternateMachine?: CardioMachine;
   safetyNote?: string;
   /** See `Exercise.visualAssetKey`. */
   visualAssetKey?: string;
@@ -73,6 +111,14 @@ export interface Workout {
   /** 1-based week number (1..8). */
   week: number;
   title: string;
+  /** Short label shown on cards, e.g. "Upper A". */
+  variantLabel: string;
+  variant: WorkoutVariant;
+  focusArea: FocusArea;
+  /** Training block: 1 = weeks 1-5, 2 = weeks 6-8. */
+  trainingBlock: 1 | 2;
+  /** Primary muscle groups this session targets, for display. */
+  primaryMuscleGroups: MuscleGroup[];
   length: SessionLength;
   estimatedDurationMinutes: { min: number; max: number };
   focus: string;
@@ -157,7 +203,7 @@ export interface WorkoutLog {
 
 /**
  * In-progress session state persisted separately from completed history.
- * One draft per workout ID under `workout-app:v1:active-drafts`.
+ * One draft per workout ID under `workout-app:v2:active-drafts`.
  */
 export interface ActiveSessionDraft {
   /** Schema version for defensive migration of malformed/older drafts. */
@@ -171,3 +217,17 @@ export interface ActiveSessionDraft {
 }
 
 export const PROGRAM_LENGTH = 32;
+
+/** Display labels for muscle-group chips on workout cards/details. */
+export const MUSCLE_GROUP_LABEL: Record<MuscleGroup, string> = {
+  chest: "Chest",
+  back: "Back",
+  shoulders: "Shoulders",
+  biceps: "Biceps",
+  triceps: "Triceps",
+  quadriceps: "Quads",
+  hamstrings: "Hamstrings",
+  glutes: "Glutes",
+  calves: "Calves",
+  core: "Core"
+};

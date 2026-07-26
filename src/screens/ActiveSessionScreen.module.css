@@ -115,6 +115,7 @@
 
 .exerciseCompleted {
   border-color: var(--color-accent);
+  opacity: 0.78;
 }
 
 .completedNote {
@@ -125,6 +126,11 @@
 .exerciseMeta {
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+.perSideLabel {
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .lastWeight {

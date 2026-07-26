@@ -4,6 +4,7 @@ import { programSlots } from "../data/program";
 import { getSlotDisplayStatus } from "../lib/progress";
 import { useAppData } from "../state/AppDataContext";
 import StatusBadge from "../components/StatusBadge";
+import { MUSCLE_GROUP_LABEL } from "../types";
 import styles from "./HomeScreen.module.css";
 
 export default function HomeScreen() {
@@ -29,6 +30,10 @@ export default function HomeScreen() {
           const status = getSlotDisplayStatus(slot, completedOrders, recommendedNextOrder);
           const title = slot.status === "ready" ? slot.workout.title : `Workout ${slot.order}`;
           const isFirstOfWeek = slot.status === "ready" && index % 4 === 0;
+          const muscleLine =
+            slot.status === "ready"
+              ? slot.workout.primaryMuscleGroups.map((m) => MUSCLE_GROUP_LABEL[m]).join(" · ")
+              : null;
 
           const content = (
             <>
@@ -36,12 +41,16 @@ export default function HomeScreen() {
               <span className={styles.itemBody}>
                 <span className={styles.itemTitle}>{title}</span>
                 {slot.status === "ready" ? (
-                  <span
-                    className={slot.workout.length === "short" ? styles.tagWorkday : styles.tagOffDay}
-                  >
-                    {slot.workout.length === "short" ? "Workday" : "Off Day"}
+                  <span className={styles.tagRow}>
+                    <span className={styles.tagVariant}>{slot.workout.variantLabel}</span>
+                    <span
+                      className={slot.workout.length === "short" ? styles.tagWorkday : styles.tagOffDay}
+                    >
+                      {slot.workout.length === "short" ? "Workday" : "Off Day"}
+                    </span>
                   </span>
                 ) : null}
+                {muscleLine ? <span className={styles.muscleLine}>{muscleLine}</span> : null}
               </span>
               <StatusBadge status={status} />
             </>
@@ -53,7 +62,6 @@ export default function HomeScreen() {
                 <li className={styles.weekHeader}>Week {slot.workout.week}</li>
               ) : null}
               <li className={styles.item}>
-                {/* Every authored workout is always openable - flexible scheduling, no locking. */}
                 {slot.status === "ready" ? (
                   <Link to={`/workout/${slot.workout.id}`} className={styles.itemLink}>
                     {content}

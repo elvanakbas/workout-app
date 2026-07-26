@@ -10,7 +10,7 @@ import { clearAllActiveSessionDrafts } from "./activeSessionDraft";
  * for anyone with that leftover key from before flexible scheduling.
  *
  * Active in-progress session drafts live under
- * `workout-app:v1:active-drafts` (see `activeSessionDraft.ts`).
+ * `workout-app:v2:active-drafts` (see `activeSessionDraft.ts`).
  */
 const KEYS = {
   progress: "workout-app:v1:progress",
