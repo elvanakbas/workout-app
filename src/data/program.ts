@@ -298,7 +298,7 @@ const EX: Record<string, CatalogEntry> = {
   },
   reversePecDeck: {
     id: "reverse-pec-deck",
-    name: "Reverse Pec Deck",
+    name: "Rear Delt Fly Machine",
     measurementType: "reps-weight",
     role: "isolation",
     equipmentCategory: "machine",
