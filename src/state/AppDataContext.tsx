@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { PROGRAM_LENGTH, type WorkoutLog } from "../types";
-import { appendLog, getLogs } from "../storage/localStorage";
+import { appendLog, ensureHistoryReady, getLogs } from "../storage/localStorage";
 import { getCompletedOrders, getRecommendedNextOrder } from "../lib/progress";
 
 interface AppDataValue {
@@ -19,7 +19,10 @@ interface AppDataValue {
 const AppDataContext = createContext<AppDataValue | null>(null);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const [logs, setLogs] = useState<WorkoutLog[]>(() => getLogs());
+  const [logs, setLogs] = useState<WorkoutLog[]>(() => {
+    ensureHistoryReady();
+    return getLogs();
+  });
 
   const completeWorkout = (log: WorkoutLog) => {
     appendLog(log);

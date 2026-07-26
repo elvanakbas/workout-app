@@ -1,0 +1,139 @@
+.screen {
+  padding: var(--space-4);
+  max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.back {
+  font-size: 14px;
+  font-weight: 600;
+  width: fit-content;
+  min-height: var(--tap-target);
+  display: inline-flex;
+  align-items: center;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.summaryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 14px;
+  color: var(--color-text);
+  padding-left: 1.1rem;
+}
+
+.notice {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.exerciseList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.exercise {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.exerciseHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.exerciseName {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.status {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.setList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.setRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 14px;
+}
+
+.setIndex {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}

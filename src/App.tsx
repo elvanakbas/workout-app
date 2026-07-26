@@ -4,6 +4,7 @@ import HomeScreen from "./screens/HomeScreen";
 import WorkoutDetailScreen from "./screens/WorkoutDetailScreen";
 import ActiveSessionScreen from "./screens/ActiveSessionScreen";
 import HistoryScreen from "./screens/HistoryScreen";
+import HistoryDetailScreen from "./screens/HistoryDetailScreen";
 import NotFoundScreen from "./screens/NotFoundScreen";
 import styles from "./App.module.css";
 
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/workout/:workoutId" element={<WorkoutDetailScreen />} />
           <Route path="/workout/:workoutId/session" element={<ActiveSessionScreen />} />
           <Route path="/history" element={<HistoryScreen />} />
+          <Route path="/history/:logId" element={<HistoryDetailScreen />} />
           <Route path="*" element={<NotFoundScreen />} />
         </Routes>
       </main>

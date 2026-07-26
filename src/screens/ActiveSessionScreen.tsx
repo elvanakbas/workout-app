@@ -4,13 +4,13 @@ import { getWorkoutById } from "../data/program";
 import { getLastWeightForExercise } from "../lib/history";
 import {
   buildInitialEntries,
-  buildLogEntriesFromSession,
   createCompletionGuard,
   isExerciseEntryEmpty,
   measurementFieldsFor,
   reconcileEntries,
   visibleSetsForExercise
 } from "../lib/sessionTracking";
+import { buildCompletedWorkoutLog } from "../lib/workoutLogBuilder";
 import {
   ACTIVE_DRAFT_SCHEMA_VERSION,
   clearActiveSessionDraft,
@@ -25,8 +25,7 @@ import type {
   Exercise,
   ExerciseLog,
   SessionFeedback,
-  SetLog,
-  WorkoutLog
+  SetLog
 } from "../types";
 import styles from "./ActiveSessionScreen.module.css";
 
@@ -62,6 +61,7 @@ export default function ActiveSessionScreen() {
   const [cardioCompleted, setCardioCompleted] = useState(false);
   const [feedback, setFeedback] = useState<SessionFeedback>(DEFAULT_FEEDBACK);
   const [entries, setEntries] = useState<ExerciseLog[]>([]);
+  const [sessionStartedAt, setSessionStartedAt] = useState<string | undefined>(undefined);
   const [completingWorkout, setCompletingWorkout] = useState(false);
   const completionGuardRef = useRef(createCompletionGuard());
 
@@ -92,11 +92,13 @@ export default function ActiveSessionScreen() {
       setFeedback({ ...DEFAULT_FEEDBACK, ...draft.feedback, note: draft.feedback.note ?? "" });
       // Always reconcile against the full catalog so LEM-hidden / extra sets survive.
       setEntries(reconcileEntries(full, draft.entries));
+      setSessionStartedAt(draft.startedAt ?? draft.updatedAt ?? new Date().toISOString());
     } else {
       setLowEnergyMode(false);
       setCardioCompleted(false);
       setFeedback({ ...DEFAULT_FEEDBACK });
       setEntries(buildInitialEntries(full));
+      setSessionStartedAt(new Date().toISOString());
     }
     completionGuardRef.current = createCompletionGuard();
     setCompletingWorkout(false);
@@ -112,12 +114,23 @@ export default function ActiveSessionScreen() {
       version: ACTIVE_DRAFT_SCHEMA_VERSION,
       workoutId: workout.id,
       updatedAt: new Date().toISOString(),
+      startedAt: sessionStartedAt,
       lowEnergyMode: canUseLowEnergyMode ? lowEnergyMode : false,
       cardioCompleted,
       entries,
       feedback
     });
-  }, [workout, hydrated, lowEnergyMode, cardioCompleted, entries, feedback, canUseLowEnergyMode, completingWorkout]);
+  }, [
+    workout,
+    hydrated,
+    lowEnergyMode,
+    cardioCompleted,
+    entries,
+    feedback,
+    canUseLowEnergyMode,
+    completingWorkout,
+    sessionStartedAt
+  ]);
 
   if (!workout) {
     return (
@@ -186,6 +199,7 @@ export default function ActiveSessionScreen() {
     setCardioCompleted(false);
     setFeedback({ ...DEFAULT_FEEDBACK });
     setEntries(buildInitialEntries(canonicalExercises));
+    setSessionStartedAt(new Date().toISOString());
     completionGuardRef.current = createCompletionGuard();
     setCompletingWorkout(false);
   };
@@ -194,20 +208,16 @@ export default function ActiveSessionScreen() {
     if (!completionGuardRef.current.tryBegin()) return;
     setCompletingWorkout(true);
 
-    const log: WorkoutLog = {
-      id: `${workout.id}-${Date.now()}`,
-      workoutId: workout.id,
-      order: workout.order,
-      workoutTitle: workout.title,
-      completedAt: new Date().toISOString(),
-      entries: buildLogEntriesFromSession(loggableExercises, entries),
-      cardioCompleted: workout.cardio ? cardioCompleted : undefined,
-      lowEnergyMode: canUseLowEnergyMode ? lowEnergyMode : undefined,
-      feedback: {
-        ...feedback,
-        note: feedback.note?.trim() ? feedback.note.trim() : undefined
-      }
-    };
+    const log = buildCompletedWorkoutLog({
+      workout,
+      canonicalExercises,
+      visibleExercises: loggableExercises,
+      entries,
+      feedback,
+      lowEnergyMode: canUseLowEnergyMode ? lowEnergyMode : false,
+      cardioCompleted,
+      startedAt: sessionStartedAt
+    });
 
     completeWorkout(log);
     clearActiveSessionDraft(workout.id);

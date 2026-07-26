@@ -11,7 +11,9 @@
     "typecheck": "tsc -b",
     "validate:session": "npx tsx scripts/validate-session.ts",
     "validate:phase2": "npx tsx scripts/validate-session.ts",
-    "validate:v2": "npx tsx scripts/validate-v2-program.ts"
+    "validate:v2": "npx tsx scripts/validate-v2-program.ts",
+    "validate:history": "npx tsx scripts/validate-history.ts",
+    "validate:history-migration": "npx tsx scripts/validate-history-migration.ts"
   },
   "dependencies": {
     "react": "^19.2.0",
