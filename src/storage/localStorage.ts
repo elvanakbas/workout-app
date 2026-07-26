@@ -1,57 +1,53 @@
-import type { WorkoutLog } from "../types";
 import { clearAllActiveSessionDrafts } from "./activeSessionDraft";
+import {
+  appendLog as appendHistoryLog,
+  ensureHistoryReady,
+  getLogs as getHistoryLogs,
+  getLogsForExport,
+  HISTORY_CANONICAL_KEY
+} from "./historyStorage";
+import type { WorkoutLog } from "../types";
 
 /**
- * All persisted data lives under versioned keys so a future schema change
- * can migrate or reset cleanly without clobbering unrelated data.
+ * App persistence helpers.
  *
- * `progress` is a legacy key from an earlier "strict sequential lock"
- * design and is no longer written. It's still removed by `resetAllData`
- * for anyone with that leftover key from before flexible scheduling.
+ * History (completed WorkoutLog[]) is owned exclusively by `historyStorage` /
+ * `historyMigration`. This module keeps the legacy progress key cleanup and
+ * re-exports History APIs so existing imports keep working.
  *
- * Active in-progress session drafts live under
- * `workout-app:v2:active-drafts` (see `activeSessionDraft.ts`).
+ * Never call localStorage.clear().
  */
-const KEYS = {
-  progress: "workout-app:v1:progress",
-  logs: "workout-app:v1:logs"
-} as const;
 
-function readJson<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    // Corrupt or unreadable data should never crash the app - fall back
-    // to a safe default instead.
-    return fallback;
-  }
-}
+const PROGRESS_KEY = "workout-app:v1:progress";
 
-function writeJson<T>(key: string, value: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // localStorage can throw (e.g. quota exceeded, private browsing). This
-    // is a local-only hobby app, so we swallow the error rather than crash;
-    // the in-memory state for this session still works.
-  }
-}
+/** @deprecated Prefer importing from historyStorage; kept for call-site stability. */
+export const HISTORY_LOGS_KEY = HISTORY_CANONICAL_KEY;
 
 export function getLogs(): WorkoutLog[] {
-  return readJson<WorkoutLog[]>(KEYS.logs, []);
+  return getHistoryLogs();
 }
 
 export function appendLog(log: WorkoutLog): void {
-  const logs = getLogs();
-  logs.push(log);
-  writeJson(KEYS.logs, logs);
+  appendHistoryLog(log);
 }
 
-/** Clears all locally stored progress, history, and active-session drafts. */
+export { getLogsForExport, ensureHistoryReady, HISTORY_CANONICAL_KEY };
+
+/**
+ * Clears progress leftovers, canonical History, and active drafts.
+ * Does NOT clear History migration backup/recovery keys (preserve forensics).
+ * Does NOT call localStorage.clear().
+ */
 export function resetAllData(): void {
-  localStorage.removeItem(KEYS.progress);
-  localStorage.removeItem(KEYS.logs);
+  try {
+    localStorage.removeItem(PROGRESS_KEY);
+  } catch {
+    // ignore
+  }
+  try {
+    localStorage.removeItem(HISTORY_CANONICAL_KEY);
+  } catch {
+    // ignore
+  }
   clearAllActiveSessionDrafts();
 }

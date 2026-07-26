@@ -1,3 +1,6 @@
+import { Link } from "react-router-dom";
+import { useState } from "react";
+import { downloadHistoryExport } from "../storage/historyExport";
 import { useAppData } from "../state/AppDataContext";
 import type { WorkoutLog } from "../types";
 import styles from "./HistoryScreen.module.css";
@@ -30,14 +33,24 @@ function feedbackSummary(log: WorkoutLog): string | null {
 
 export default function HistoryScreen() {
   const { logs } = useAppData();
+  const [exportNote, setExportNote] = useState<string | null>(null);
   const sorted = [...logs].sort(
     (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
   );
+
+  const onExport = () => {
+    const ok = downloadHistoryExport();
+    setExportNote(ok ? "History JSON downloaded." : "Export failed. Try again.");
+  };
 
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
         <h1 className={styles.title}>History</h1>
+        <button type="button" className={styles.exportButton} onClick={onExport}>
+          Export History JSON
+        </button>
+        {exportNote ? <p className={styles.exportNote}>{exportNote}</p> : null}
       </header>
 
       {sorted.length === 0 ? (
@@ -46,15 +59,19 @@ export default function HistoryScreen() {
         <ul className={styles.list}>
           {sorted.map((log) => (
             <li key={log.id} className={styles.item}>
-              <div className={styles.itemHeader}>
-                <span className={styles.itemTitle}>{log.workoutTitle}</span>
-                <span className={styles.itemDate}>{formatDate(log.completedAt)}</span>
-              </div>
-              <span className={styles.itemSummary}>{summarize(log)}</span>
-              {feedbackSummary(log) ? (
-                <span className={styles.itemFeedback}>{feedbackSummary(log)}</span>
-              ) : null}
-              {log.lowEnergyMode ? <span className={styles.itemFeedback}>Low-energy mode</span> : null}
+              <Link to={`/history/${encodeURIComponent(log.id)}`} className={styles.itemLink}>
+                <div className={styles.itemHeader}>
+                  <span className={styles.itemTitle}>{log.workoutTitle}</span>
+                  <span className={styles.itemDate}>{formatDate(log.completedAt)}</span>
+                </div>
+                <span className={styles.itemSummary}>{summarize(log)}</span>
+                {feedbackSummary(log) ? (
+                  <span className={styles.itemFeedback}>{feedbackSummary(log)}</span>
+                ) : null}
+                {log.lowEnergyMode ? (
+                  <span className={styles.itemFeedback}>Low-energy mode</span>
+                ) : null}
+              </Link>
             </li>
           ))}
         </ul>

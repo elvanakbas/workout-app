@@ -146,6 +146,7 @@ export function normalizeActiveSessionDraft(raw: unknown, expectedWorkoutId: str
     version: ACTIVE_DRAFT_SCHEMA_VERSION,
     workoutId: expectedWorkoutId,
     updatedAt: typeof candidate.updatedAt === "string" ? candidate.updatedAt : new Date().toISOString(),
+    startedAt: typeof candidate.startedAt === "string" ? candidate.startedAt : undefined,
     lowEnergyMode: candidate.lowEnergyMode === true,
     cardioCompleted: candidate.cardioCompleted === true,
     entries,
@@ -171,8 +172,16 @@ export function getActiveSessionDraft(workoutId: string): ActiveSessionDraft | n
 export function saveActiveSessionDraft(draft: ActiveSessionDraft): void {
   if (draft.version !== ACTIVE_DRAFT_SCHEMA_VERSION || !draft.workoutId) return;
   const map = readDraftMap();
+  const existing = map[draft.workoutId];
+  const startedAt =
+    typeof draft.startedAt === "string"
+      ? draft.startedAt
+      : typeof existing?.startedAt === "string"
+        ? existing.startedAt
+        : new Date().toISOString();
   map[draft.workoutId] = {
     ...draft,
+    startedAt,
     updatedAt: new Date().toISOString()
   };
   writeDraftMap(map);
@@ -205,12 +214,14 @@ export function listActiveSessionDraftWorkoutIds(): string[] {
 export function createEmptyDraft(
   workoutId: string,
   entries: ExerciseLog[],
-  options?: { lowEnergyMode?: boolean; cardioCompleted?: boolean }
+  options?: { lowEnergyMode?: boolean; cardioCompleted?: boolean; startedAt?: string }
 ): ActiveSessionDraft {
+  const now = new Date().toISOString();
   return {
     version: ACTIVE_DRAFT_SCHEMA_VERSION,
     workoutId,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
+    startedAt: options?.startedAt ?? now,
     lowEnergyMode: options?.lowEnergyMode === true,
     cardioCompleted: options?.cardioCompleted === true,
     entries,
