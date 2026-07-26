@@ -370,6 +370,17 @@ export default function ActiveSessionScreen() {
             Cardio{workout.cardio.optional || lowEnergyMode ? " (Optional)" : ""}
           </h2>
           <p className={styles.exerciseMeta}>
+            {workout.cardio.machine === "elliptical"
+              ? "Elliptical"
+              : workout.cardio.machine === "stationary_bike"
+                ? "Stationary Bike"
+                : "Rowing Machine"}
+            {workout.cardio.alternateMachine === "stationary_bike"
+              ? " or Stationary Bike"
+              : workout.cardio.alternateMachine === "elliptical"
+                ? " or Elliptical"
+                : ""}
+            {" — "}
             {workout.cardio.durationMinutes} min - {workout.cardio.intensity}
           </p>
           <ExerciseVisual visualAssetKey={workout.cardio.visualAssetKey} variant="session" />

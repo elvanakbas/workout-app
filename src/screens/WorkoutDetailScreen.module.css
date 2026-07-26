@@ -31,13 +31,19 @@
 }
 
 .tagWorkday,
-.tagOffDay {
+.tagOffDay,
+.tagVariant {
   display: inline-flex;
   align-items: center;
   padding: var(--space-1) var(--space-2);
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
+}
+
+.tagVariant {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
 }
 
 .tagWorkday {
