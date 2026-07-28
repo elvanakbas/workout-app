@@ -29,7 +29,12 @@ export const HISTORY_RECOVERY_KEY = "workout-app:history-recovery";
 export const KNOWN_NON_HISTORY_KEYS = [
   "workout-app:v1:progress",
   "workout-app:v1:active-drafts",
-  "workout-app:v2:active-drafts"
+  "workout-app:v2:active-drafts",
+  "workout-app:nutrition:settings:v1",
+  "workout-app:nutrition:days:v1",
+  "workout-app:nutrition:migration-version",
+  "workout-app:nutrition:backup:v1",
+  "workout-app:nutrition:recovery"
 ] as const;
 
 export interface HistoryBackupDocument {

@@ -10,6 +10,9 @@ export default function BottomNav() {
       <NavLink to="/" className={linkClassName} end>
         Program
       </NavLink>
+      <NavLink to="/nutrition" className={linkClassName}>
+        Nutrition
+      </NavLink>
       <NavLink to="/history" className={linkClassName}>
         History
       </NavLink>

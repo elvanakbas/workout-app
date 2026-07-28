@@ -3,6 +3,7 @@ import BottomNav from "./components/BottomNav";
 import HomeScreen from "./screens/HomeScreen";
 import WorkoutDetailScreen from "./screens/WorkoutDetailScreen";
 import ActiveSessionScreen from "./screens/ActiveSessionScreen";
+import NutritionScreen from "./screens/NutritionScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import HistoryDetailScreen from "./screens/HistoryDetailScreen";
 import NotFoundScreen from "./screens/NotFoundScreen";
@@ -16,6 +17,8 @@ export default function App() {
           <Route path="/" element={<HomeScreen />} />
           <Route path="/workout/:workoutId" element={<WorkoutDetailScreen />} />
           <Route path="/workout/:workoutId/session" element={<ActiveSessionScreen />} />
+          <Route path="/nutrition" element={<NutritionScreen />} />
+          <Route path="/nutrition/:dateKey" element={<NutritionScreen />} />
           <Route path="/history" element={<HistoryScreen />} />
           <Route path="/history/:logId" element={<HistoryDetailScreen />} />
           <Route path="*" element={<NotFoundScreen />} />
