@@ -137,3 +137,12 @@
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
+
+.nutritionLink {
+  font-size: 14px;
+  font-weight: 600;
+  min-height: var(--tap-target);
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+}

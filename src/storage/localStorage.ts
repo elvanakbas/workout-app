@@ -36,6 +36,7 @@ export { getLogsForExport, ensureHistoryReady, HISTORY_CANONICAL_KEY };
 /**
  * Clears progress leftovers, canonical History, and active drafts.
  * Does NOT clear History migration backup/recovery keys (preserve forensics).
+ * Does NOT clear Nutrition settings/days/migration/backup/recovery.
  * Does NOT call localStorage.clear().
  */
 export function resetAllData(): void {

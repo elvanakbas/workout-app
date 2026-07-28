@@ -15,6 +15,9 @@ import {
   totalRepsWeightVolume
 } from "../lib/workoutLogAnalytics";
 import { findLogById } from "../lib/workoutLogNormalize";
+import { dayTotals, remainingSummary } from "../lib/nutritionMath";
+import { workoutLogLocalDateKey } from "../lib/nutritionWorkoutLink";
+import { getNutritionDay, getNutritionSettings } from "../storage/nutritionStorage";
 import type { ExerciseLog, SetLog, WorkoutLog } from "../types";
 import styles from "./HistoryDetailScreen.module.css";
 
@@ -243,7 +246,85 @@ function DetailBody({ log, logs }: { log: WorkoutLog; logs: WorkoutLog[] }) {
           </ul>
         </section>
       ) : null}
+
+      <NutritionThatDaySection log={log} />
     </>
+  );
+}
+
+function formatMacro(n: number, decimals = 0): string {
+  if (!Number.isFinite(n)) return "0";
+  return n.toLocaleString(undefined, {
+    maximumFractionDigits: decimals,
+    minimumFractionDigits: 0
+  });
+}
+
+/**
+ * Read-only Nutrition summary for the workout's local calendar date.
+ * Uses current NutritionDay data and current global targets (not a snapshot
+ * frozen at workout completion).
+ */
+function NutritionThatDaySection({ log }: { log: WorkoutLog }) {
+  const dateKey = workoutLogLocalDateKey(log);
+  if (!dateKey) return null;
+
+  const day = getNutritionDay(dateKey);
+  const hasEntries = !!day && day.entries.length > 0;
+  if (!hasEntries) {
+    return (
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Nutrition that day</h2>
+        <p className={styles.meta}>
+          No nutrition currently recorded for {dateKey}.
+        </p>
+        <Link to={`/nutrition/${dateKey}`} className={styles.nutritionLink}>
+          View Nutrition Day
+        </Link>
+      </section>
+    );
+  }
+
+  const settings = getNutritionSettings();
+  const totals = dayTotals(day);
+  const remaining = remainingSummary(totals, settings);
+
+  const remainingParts: string[] = [];
+  if (remaining.caloriesOverTarget) {
+    remainingParts.push(`${formatMacro(remaining.caloriesOverBy)} kcal over current target`);
+  } else {
+    remainingParts.push(`${formatMacro(remaining.caloriesRemaining)} kcal remaining vs current target`);
+  }
+  if (remaining.proteinOverTarget) {
+    remainingParts.push(`${formatMacro(remaining.proteinOverBy, 1)} g protein over current target`);
+  } else {
+    remainingParts.push(
+      `${formatMacro(remaining.proteinRemaining, 1)} g protein remaining vs current target`
+    );
+  }
+
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionTitle}>Nutrition that day</h2>
+      <p className={styles.meta}>
+        Nutrition currently recorded for {dateKey} (may have been added or edited after this
+        workout). Targets shown are your current settings, not historical snapshots.
+      </p>
+      <ul className={styles.summaryList}>
+        <li>
+          Calories: {formatMacro(totals.calories)} / {formatMacro(settings.calorieTarget)} kcal
+          (current target)
+        </li>
+        <li>
+          Protein: {formatMacro(totals.proteinGrams, 1)} /{" "}
+          {formatMacro(settings.proteinTargetGrams, 1)} g (current target)
+        </li>
+        <li>{remainingParts.join(" · ")}</li>
+      </ul>
+      <Link to={`/nutrition/${dateKey}`} className={styles.nutritionLink}>
+        View Nutrition Day
+      </Link>
+    </section>
   );
 }
 

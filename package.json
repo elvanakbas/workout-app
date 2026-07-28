@@ -13,7 +13,8 @@
     "validate:phase2": "npx tsx scripts/validate-session.ts",
     "validate:v2": "npx tsx scripts/validate-v2-program.ts",
     "validate:history": "npx tsx scripts/validate-history.ts",
-    "validate:history-migration": "npx tsx scripts/validate-history-migration.ts"
+    "validate:history-migration": "npx tsx scripts/validate-history-migration.ts",
+    "validate:nutrition": "npx tsx scripts/validate-nutrition.ts"
   },
   "dependencies": {
     "react": "^19.2.0",
