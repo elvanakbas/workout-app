@@ -19,6 +19,8 @@ import {
   saveActiveSessionDraft
 } from "../storage/activeSessionDraft";
 import { useAppData } from "../state/AppDataContext";
+import { useCloudAuth } from "../cloud/CloudAuthContext";
+import { syncAfterWorkoutComplete } from "../cloud/syncEngine";
 import ExerciseVisual from "../components/ExerciseVisual";
 import type {
   EnergyLevel,
@@ -54,6 +56,7 @@ export default function ActiveSessionScreen() {
   const { workoutId } = useParams<{ workoutId: string }>();
   const navigate = useNavigate();
   const { logs, completeWorkout } = useAppData();
+  const { user, notifyLocalMutation } = useCloudAuth();
   const workout = workoutId ? getWorkoutById(workoutId) : undefined;
 
   const [hydrated, setHydrated] = useState(false);
@@ -221,6 +224,8 @@ export default function ActiveSessionScreen() {
 
     completeWorkout(log);
     clearActiveSessionDraft(workout.id);
+    notifyLocalMutation();
+    void syncAfterWorkoutComplete(user?.id ?? null, workout.id);
     navigate("/", { replace: true });
   };
 

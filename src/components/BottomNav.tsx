@@ -16,6 +16,9 @@ export default function BottomNav() {
       <NavLink to="/history" className={linkClassName}>
         History
       </NavLink>
+      <NavLink to="/account" className={linkClassName}>
+        Account
+      </NavLink>
     </nav>
   );
 }

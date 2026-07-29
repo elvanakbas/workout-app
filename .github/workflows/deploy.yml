@@ -30,6 +30,10 @@ jobs:
       - name: Build
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          # Optional cloud sync (publishable key only — never service role).
+          # Create repository secrets/variables with these exact names.
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: npm run build
 
       - uses: actions/configure-pages@v5

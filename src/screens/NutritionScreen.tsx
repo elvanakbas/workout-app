@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAppData } from "../state/AppDataContext";
+import { useCloudAuth } from "../cloud/CloudAuthContext";
 import {
   formatLocalDateKeyLabel,
   isDateKeyFormat,
@@ -56,6 +57,7 @@ export default function NutritionScreen() {
   const { dateKey: rawDateKey } = useParams<{ dateKey?: string }>();
   const navigate = useNavigate();
   const { logs } = useAppData();
+  const { notifyLocalMutation } = useCloudAuth();
 
   const dateKey = resolveDateKey(rawDateKey);
   const todayKey = todayLocalDateKey();
@@ -166,6 +168,7 @@ export default function NutritionScreen() {
       setForm(emptyForm);
       setEditingId(null);
       refreshFromStorage();
+      notifyLocalMutation();
     } catch {
       setFormError("Could not save that food entry. Check the values and try again.");
     } finally {
@@ -196,6 +199,7 @@ export default function NutritionScreen() {
     deleteNutritionEntry(dateKey, entry.id);
     if (editingId === entry.id) cancelEdit();
     refreshFromStorage();
+    notifyLocalMutation();
   };
 
   const startTargetEdit = () => {
@@ -225,6 +229,7 @@ export default function NutritionScreen() {
     setSettings(saved);
     setEditingTargets(false);
     setTargetError(null);
+    notifyLocalMutation();
   };
 
   const onExport = () => {

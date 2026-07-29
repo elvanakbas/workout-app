@@ -6,6 +6,7 @@ import ActiveSessionScreen from "./screens/ActiveSessionScreen";
 import NutritionScreen from "./screens/NutritionScreen";
 import HistoryScreen from "./screens/HistoryScreen";
 import HistoryDetailScreen from "./screens/HistoryDetailScreen";
+import AccountScreen from "./screens/AccountScreen";
 import NotFoundScreen from "./screens/NotFoundScreen";
 import styles from "./App.module.css";
 
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/nutrition/:dateKey" element={<NutritionScreen />} />
           <Route path="/history" element={<HistoryScreen />} />
           <Route path="/history/:logId" element={<HistoryDetailScreen />} />
+          <Route path="/account" element={<AccountScreen />} />
           <Route path="*" element={<NotFoundScreen />} />
         </Routes>
       </main>

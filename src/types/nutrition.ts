@@ -12,6 +12,10 @@ export type NutritionEntry = {
 export type NutritionDay = {
   dateKey: string;
   entries: NutritionEntry[];
+  /** ISO timestamp for cloud merge; bumped on any entry change. */
+  updatedAt?: string;
+  /** Tombstones so older devices cannot resurrect deleted entries. */
+  deletedEntryIds?: string[];
 };
 
 /** Global targets (not snapshotted per day in V1). */

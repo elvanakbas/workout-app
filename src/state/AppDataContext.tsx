@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { PROGRAM_LENGTH, type WorkoutLog } from "../types";
 import { appendLog, ensureHistoryReady, getLogs } from "../storage/localStorage";
 import { ensureNutritionReady } from "../storage/nutritionStorage";
@@ -15,6 +15,8 @@ interface AppDataValue {
    * workout never implicitly completes any other workout, earlier or later.
    */
   completeWorkout: (log: WorkoutLog) => void;
+  /** Re-read History from storage (after cloud merge). */
+  reloadLogsFromStorage: () => void;
 }
 
 const AppDataContext = createContext<AppDataValue | null>(null);
@@ -25,6 +27,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     ensureNutritionReady();
     return getLogs();
   });
+
+  const reloadLogsFromStorage = useCallback(() => {
+    ensureHistoryReady();
+    setLogs(getLogs());
+  }, []);
 
   const completeWorkout = (log: WorkoutLog) => {
     appendLog(log);
@@ -37,9 +44,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       logs,
       completedOrders,
       recommendedNextOrder: getRecommendedNextOrder(completedOrders, PROGRAM_LENGTH),
-      completeWorkout
+      completeWorkout,
+      reloadLogsFromStorage
     };
-  }, [logs]);
+  }, [logs, reloadLogsFromStorage]);
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }

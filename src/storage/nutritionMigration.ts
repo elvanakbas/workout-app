@@ -125,7 +125,17 @@ export function normalizeNutritionDay(
     if (entry) entries.push(entry);
     else droppedEntries.push(item);
   }
-  return { day: { dateKey: raw.dateKey, entries }, droppedEntries };
+  return {
+    day: {
+      dateKey: raw.dateKey,
+      entries,
+      updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : undefined,
+      deletedEntryIds: Array.isArray(raw.deletedEntryIds)
+        ? raw.deletedEntryIds.filter((id): id is string => typeof id === "string")
+        : undefined
+    },
+    droppedEntries
+  };
 }
 
 export function normalizeNutritionSettings(raw: unknown): NutritionSettings {

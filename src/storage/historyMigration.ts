@@ -34,7 +34,10 @@ export const KNOWN_NON_HISTORY_KEYS = [
   "workout-app:nutrition:days:v1",
   "workout-app:nutrition:migration-version",
   "workout-app:nutrition:backup:v1",
-  "workout-app:nutrition:recovery"
+  "workout-app:nutrition:recovery",
+  "workout-app:cloud:last-user-id",
+  "workout-app:cloud:sync-state:v1",
+  "workout-app:cloud:pending-queue:v1"
 ] as const;
 
 export interface HistoryBackupDocument {
