@@ -108,7 +108,9 @@ export function addNutritionEntry(
   const existing = getNutritionDay(dateKey) ?? { dateKey, entries: [] };
   saveNutritionDay({
     dateKey,
-    entries: [...existing.entries, entry]
+    entries: [...existing.entries, entry],
+    updatedAt: now,
+    deletedEntryIds: existing.deletedEntryIds
   });
   return entry;
 }
@@ -140,7 +142,12 @@ export function updateNutritionEntry(
 
   const entries = [...day.entries];
   entries[index] = updated;
-  saveNutritionDay({ dateKey, entries });
+  saveNutritionDay({
+    dateKey,
+    entries,
+    updatedAt: new Date().toISOString(),
+    deletedEntryIds: day.deletedEntryIds
+  });
   return updated;
 }
 
@@ -150,7 +157,13 @@ export function deleteNutritionEntry(dateKey: string, entryId: string): boolean 
   if (!day) return false;
   const nextEntries = day.entries.filter((e) => e.id !== entryId);
   if (nextEntries.length === day.entries.length) return false;
-  saveNutritionDay({ dateKey, entries: nextEntries });
+  const deletedEntryIds = [...new Set([...(day.deletedEntryIds ?? []), entryId])];
+  saveNutritionDay({
+    dateKey,
+    entries: nextEntries,
+    updatedAt: new Date().toISOString(),
+    deletedEntryIds
+  });
   return true;
 }
 

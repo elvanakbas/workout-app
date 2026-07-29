@@ -1,9 +1,9 @@
 # Workout Tracker
 
-A mobile-first, local-only Progressive Web App for tracking a sequential
-32-workout program. All data (progress and logged sets) is stored in the
-browser's `localStorage` on your device. There is no backend, no account,
-and no external service of any kind.
+A mobile-first, **local-first** Progressive Web App for tracking a sequential
+32-workout program. Workout History, Nutrition, and drafts live in the
+browser's `localStorage`. Optional free **Supabase** accounts can sync the
+same data across phone and PC without a custom backend.
 
 ## Status: v0.1
 
@@ -14,6 +14,17 @@ leg press/leg curl, hip thrust/glute bridge, and low-impact cardio
 (elliptical, stationary bike, or rowing only), with concise safety notes on
 movements that are lower-back, knee, or shoulder-sensitive. Weight is always
 recorded in kilograms.
+
+## Optional cloud sync (Supabase)
+
+1. Follow [docs/V2_SUPABASE_SETUP.md](docs/V2_SUPABASE_SETUP.md) to create a Free
+   Supabase project, apply SQL, and set `VITE_SUPABASE_URL` /
+   `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env.local` (and GitHub Actions secrets
+   for Pages).
+2. Architecture and merge rules: [docs/V2_CLOUD_SYNC.md](docs/V2_CLOUD_SYNC.md).
+3. Without those env vars the app stays fully usable in **Local only** mode.
+
+Never put the Supabase **service role** key in frontend code or GitHub Pages.
 
 ## Getting started
 

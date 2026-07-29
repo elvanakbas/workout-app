@@ -169,7 +169,10 @@ export function getActiveSessionDraft(workoutId: string): ActiveSessionDraft | n
   return normalized;
 }
 
-export function saveActiveSessionDraft(draft: ActiveSessionDraft): void {
+export function saveActiveSessionDraft(
+  draft: ActiveSessionDraft,
+  options?: { preserveUpdatedAt?: boolean }
+): void {
   if (draft.version !== ACTIVE_DRAFT_SCHEMA_VERSION || !draft.workoutId) return;
   const map = readDraftMap();
   const existing = map[draft.workoutId];
@@ -182,9 +185,24 @@ export function saveActiveSessionDraft(draft: ActiveSessionDraft): void {
   map[draft.workoutId] = {
     ...draft,
     startedAt,
-    updatedAt: new Date().toISOString()
+    updatedAt: options?.preserveUpdatedAt
+      ? typeof draft.updatedAt === "string"
+        ? draft.updatedAt
+        : new Date().toISOString()
+      : new Date().toISOString()
   };
   writeDraftMap(map);
+}
+
+/** All valid normalized drafts currently stored. */
+export function listActiveSessionDrafts(): ActiveSessionDraft[] {
+  const map = readDraftMap();
+  const out: ActiveSessionDraft[] = [];
+  for (const [workoutId, raw] of Object.entries(map)) {
+    const normalized = normalizeActiveSessionDraft(raw, workoutId);
+    if (normalized) out.push(normalized);
+  }
+  return out;
 }
 
 export function clearActiveSessionDraft(workoutId: string): void {

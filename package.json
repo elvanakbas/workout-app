@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Local-only, mobile-first PWA for tracking a sequential 32-workout program.",
+  "description": "Local-first, mobile-first PWA for tracking a sequential 32-workout program, with optional free Supabase account sync.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -14,9 +14,11 @@
     "validate:v2": "npx tsx scripts/validate-v2-program.ts",
     "validate:history": "npx tsx scripts/validate-history.ts",
     "validate:history-migration": "npx tsx scripts/validate-history-migration.ts",
-    "validate:nutrition": "npx tsx scripts/validate-nutrition.ts"
+    "validate:nutrition": "npx tsx scripts/validate-nutrition.ts",
+    "validate:cloud-sync": "npx tsx scripts/validate-cloud-sync.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.111.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.18.0"
