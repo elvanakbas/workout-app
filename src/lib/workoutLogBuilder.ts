@@ -7,10 +7,13 @@ import type {
   WorkoutLog,
   WorkoutLogCardioSnapshot
 } from "../types";
+import { PROGRAM_VERSION } from "../types";
 import { visibleSetsForExercise } from "./sessionTracking";
+import { isoToLocalDateKey } from "./localDate";
+import { plannedDateKeyForOrder } from "./schedule";
 
-/** Completed-log schema version written by Phase 4+ session completion. */
-export const WORKOUT_LOG_SCHEMA_VERSION = 2 as const;
+/** Completed-log schema version written by V3 session completion. */
+export const WORKOUT_LOG_SCHEMA_VERSION = 3 as const;
 
 /**
  * Build immutable per-exercise snapshots for a completed session.
@@ -37,6 +40,8 @@ export function buildRichLogEntries(
       plannedSets: exercise.targetSets,
       plannedReps: exercise.targetReps,
       visualAssetKey: exercise.visualAssetKey,
+      role: exercise.role,
+      optional: exercise.optional === true ? true : undefined,
       completed,
       status: skipped ? "skipped" : completed ? "completed" : "incomplete",
       sets: skipped
@@ -83,14 +88,38 @@ export interface BuildCompletedWorkoutLogInput {
   startedAt?: string;
   completedAt?: string;
   id?: string;
+  programStartDateKey?: string | null;
+  optionalCoreSelected?: boolean;
+  optionalCardioSelected?: boolean;
 }
 
-/** Create a Phase 4 rich, self-contained WorkoutLog from an active session. */
+/** Create a V3 rich, self-contained WorkoutLog from an active session. */
 export function buildCompletedWorkoutLog(input: BuildCompletedWorkoutLogInput): WorkoutLog {
   const completedAt = input.completedAt ?? new Date().toISOString();
   const startedAt = input.startedAt;
   const durationSeconds = computeSessionDurationSeconds(startedAt, completedAt);
   const cardio = buildCardioSnapshot(input.workout.cardio, input.cardioCompleted);
+  const actualDateKey = isoToLocalDateKey(startedAt) ?? isoToLocalDateKey(completedAt) ?? undefined;
+  const plannedDateKey = input.programStartDateKey
+    ? plannedDateKeyForOrder(input.programStartDateKey, input.workout.order) ?? undefined
+    : undefined;
+
+  const optionalCoreSelected = input.optionalCoreSelected === true;
+  const optionalCoreEntries = (input.workout.optionalCore ?? []).map((ex) => ex.id);
+  const optionalCoreCompleted =
+    optionalCoreSelected &&
+    optionalCoreEntries.length > 0 &&
+    optionalCoreEntries.every((id) => {
+      const entry = input.entries.find((e) => e.exerciseId === id);
+      return entry?.completed === true;
+    });
+
+  const optionalCardioSelected = input.optionalCardioSelected === true;
+  const mainIds = new Set(input.canonicalExercises.filter((e) => !e.optional).map((e) => e.id));
+  const mainWorkoutCompleted = [...mainIds].every((id) => {
+    const entry = input.entries.find((e) => e.exerciseId === id);
+    return entry?.completed === true;
+  });
 
   return {
     id: input.id ?? `${input.workout.id}-${Date.now()}`,
@@ -112,6 +141,16 @@ export function buildCompletedWorkoutLog(input: BuildCompletedWorkoutLogInput): 
     feedback: {
       ...input.feedback,
       note: input.feedback.note?.trim() ? input.feedback.note.trim() : undefined
-    }
+    },
+    programVersion: PROGRAM_VERSION,
+    workoutIdentity: input.workout.identity,
+    preferredWeekday: input.workout.preferredWeekday,
+    plannedDateKey,
+    actualDateKey,
+    optionalCoreSelected: input.workout.optionalCore?.length ? optionalCoreSelected : undefined,
+    optionalCoreCompleted: input.workout.optionalCore?.length ? optionalCoreCompleted : undefined,
+    optionalCardioSelected: input.workout.cardio ? optionalCardioSelected : undefined,
+    optionalCardioCompleted: input.workout.cardio ? input.cardioCompleted : undefined,
+    mainWorkoutCompleted
   };
 }

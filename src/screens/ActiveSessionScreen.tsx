@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getWorkoutById } from "../data/program";
+import { getMandatoryExercises, getWorkoutById } from "../data/program";
 import { getLastWeightForExercise } from "../lib/history";
+import { roleDisplayLabel } from "../lib/roleDisplay";
+import { getMigratedActiveSessionDraft } from "../lib/draftMigration";
 import {
   buildInitialEntries,
   createCompletionGuard,
@@ -15,9 +17,9 @@ import {
   ACTIVE_DRAFT_SCHEMA_VERSION,
   clearActiveSessionDraft,
   DEFAULT_FEEDBACK,
-  getActiveSessionDraft,
   saveActiveSessionDraft
 } from "../storage/activeSessionDraft";
+import { getProgramScheduleSettings } from "../storage/programSettings";
 import { useAppData } from "../state/AppDataContext";
 import { useCloudAuth } from "../cloud/CloudAuthContext";
 import { syncAfterWorkoutComplete } from "../cloud/syncEngine";
@@ -29,25 +31,27 @@ import type {
   SessionFeedback,
   SetLog
 } from "../types";
+import { PROGRAM_VERSION, IDENTITY_DISPLAY_LABEL } from "../types";
 import styles from "./ActiveSessionScreen.module.css";
 
 const LOW_ENERGY_MAX_SETS = 2;
 const ENERGY_OPTIONS: EnergyLevel[] = ["low", "normal", "high"];
 
+/** LEM: hide optionals; cap non-primary to 2 sets; never reduce Primary Lift. */
 function applyLowEnergy(exercises: Exercise[], lowEnergyMode: boolean): Exercise[] {
   if (!lowEnergyMode) return exercises;
   return exercises
     .filter((exercise) => !exercise.optional)
-    .map((exercise) => ({
-      ...exercise,
-      targetSets: Math.min(LOW_ENERGY_MAX_SETS, exercise.targetSets)
-    }));
+    .map((exercise) =>
+      exercise.role === "primary"
+        ? exercise
+        : { ...exercise, targetSets: Math.min(LOW_ENERGY_MAX_SETS, exercise.targetSets) }
+    );
 }
 
 function unilateralLabel(exercise: Exercise): string | null {
   const label = exercise.targetUnitLabel || (exercise.unilateral ? "per side" : null);
   if (!label) return null;
-  // Avoid duplicating when targetReps already includes the unit (e.g. "8-12 per side").
   if (exercise.targetReps.toLowerCase().includes(label.toLowerCase())) return null;
   return label;
 }
@@ -61,56 +65,70 @@ export default function ActiveSessionScreen() {
 
   const [hydrated, setHydrated] = useState(false);
   const [lowEnergyMode, setLowEnergyMode] = useState(false);
+  const [optionalCoreEnabled, setOptionalCoreEnabled] = useState(false);
+  const [optionalCardioEnabled, setOptionalCardioEnabled] = useState(false);
   const [cardioCompleted, setCardioCompleted] = useState(false);
   const [feedback, setFeedback] = useState<SessionFeedback>(DEFAULT_FEEDBACK);
   const [entries, setEntries] = useState<ExerciseLog[]>([]);
   const [sessionStartedAt, setSessionStartedAt] = useState<string | undefined>(undefined);
   const [completingWorkout, setCompletingWorkout] = useState(false);
+  const [legacyEntries, setLegacyEntries] = useState<ExerciseLog[]>([]);
   const completionGuardRef = useRef(createCompletionGuard());
 
   const canUseLowEnergyMode = workout?.length === "short";
+  const hideAddOns = lowEnergyMode;
 
-  /** Full authored strength+core list (never LEM-trimmed). Draft source of truth. */
+  const mandatoryExercises = useMemo(
+    () => (workout ? getMandatoryExercises(workout) : []),
+    [workout]
+  );
+
   const canonicalExercises = useMemo(() => {
     if (!workout) return [];
-    return [...workout.strength, ...workout.core];
-  }, [workout]);
+    const optional =
+      optionalCoreEnabled && !hideAddOns ? (workout.optionalCore ?? []) : [];
+    return [...mandatoryExercises, ...optional];
+  }, [workout, mandatoryExercises, optionalCoreEnabled, hideAddOns]);
 
-  /** Visible list for logging UI (LEM may hide optionals and cap set count). */
-  const loggableExercises = useMemo(() => {
-    if (!workout) return [];
-    return applyLowEnergy(canonicalExercises, lowEnergyMode);
-  }, [workout, canonicalExercises, lowEnergyMode]);
+  const loggableExercises = useMemo(
+    () => applyLowEnergy(canonicalExercises, lowEnergyMode),
+    [canonicalExercises, lowEnergyMode]
+  );
 
-  // Restore draft (or seed empty entries) once per workout id.
+  const completedCount = loggableExercises.filter(
+    (ex) => entries.find((e) => e.exerciseId === ex.id)?.completed
+  ).length;
+
   useEffect(() => {
     if (!workout) return;
     const shortSession = workout.length === "short";
-    const full = [...workout.strength, ...workout.core];
-    const draft = getActiveSessionDraft(workout.id);
+    const draft = getMigratedActiveSessionDraft(workout);
+    const fullSeed = [...getMandatoryExercises(workout), ...(workout.optionalCore ?? [])];
     if (draft) {
-      const mode = shortSession ? draft.lowEnergyMode : false;
-      setLowEnergyMode(mode);
+      setLowEnergyMode(shortSession ? draft.lowEnergyMode : false);
+      setOptionalCoreEnabled(draft.optionalCoreEnabled === true);
+      setOptionalCardioEnabled(draft.optionalCardioEnabled === true);
       setCardioCompleted(draft.cardioCompleted);
       setFeedback({ ...DEFAULT_FEEDBACK, ...draft.feedback, note: draft.feedback.note ?? "" });
-      // Always reconcile against the full catalog so LEM-hidden / extra sets survive.
-      setEntries(reconcileEntries(full, draft.entries));
+      setEntries(reconcileEntries(fullSeed, draft.entries));
+      setLegacyEntries(draft.legacyEntries ?? []);
       setSessionStartedAt(draft.startedAt ?? draft.updatedAt ?? new Date().toISOString());
     } else {
       setLowEnergyMode(false);
+      setOptionalCoreEnabled(false);
+      setOptionalCardioEnabled(false);
       setCardioCompleted(false);
       setFeedback({ ...DEFAULT_FEEDBACK });
-      setEntries(buildInitialEntries(full));
+      setEntries(buildInitialEntries(fullSeed));
+      setLegacyEntries([]);
       setSessionStartedAt(new Date().toISOString());
     }
     completionGuardRef.current = createCompletionGuard();
     setCompletingWorkout(false);
     setHydrated(true);
-    // Intentionally only re-hydrate when the workout identity changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout?.id]);
 
-  // Auto-save draft whenever session state changes.
   useEffect(() => {
     if (!workout || !hydrated || completingWorkout) return;
     saveActiveSessionDraft({
@@ -121,7 +139,11 @@ export default function ActiveSessionScreen() {
       lowEnergyMode: canUseLowEnergyMode ? lowEnergyMode : false,
       cardioCompleted,
       entries,
-      feedback
+      feedback,
+      programVersion: PROGRAM_VERSION,
+      optionalCoreEnabled,
+      optionalCardioEnabled,
+      legacyEntries: legacyEntries.length > 0 ? legacyEntries : undefined
     });
   }, [
     workout,
@@ -132,7 +154,10 @@ export default function ActiveSessionScreen() {
     feedback,
     canUseLowEnergyMode,
     completingWorkout,
-    sessionStartedAt
+    sessionStartedAt,
+    optionalCoreEnabled,
+    optionalCardioEnabled,
+    legacyEntries
   ]);
 
   if (!workout) {
@@ -145,11 +170,13 @@ export default function ActiveSessionScreen() {
   }
 
   const toggleLowEnergyMode = () => {
-    const next = !lowEnergyMode;
-    setLowEnergyMode(next);
-    // Keep full catalog entries; UI filters visibility. Reconcile pads/truncates
-    // to canonical targetSets without dropping hidden optional drafts.
-    setEntries((prev) => reconcileEntries(canonicalExercises, prev));
+    setLowEnergyMode((prev) => !prev);
+    setEntries((prev) =>
+      reconcileEntries(
+        [...getMandatoryExercises(workout), ...(workout.optionalCore ?? [])],
+        prev
+      )
+    );
   };
 
   const updateSet = (
@@ -199,9 +226,12 @@ export default function ActiveSessionScreen() {
     if (!ok) return;
     clearActiveSessionDraft(workout.id);
     setLowEnergyMode(false);
+    setOptionalCoreEnabled(false);
+    setOptionalCardioEnabled(false);
     setCardioCompleted(false);
     setFeedback({ ...DEFAULT_FEEDBACK });
-    setEntries(buildInitialEntries(canonicalExercises));
+    setEntries(buildInitialEntries([...mandatoryExercises, ...(workout.optionalCore ?? [])]));
+    setLegacyEntries([]);
     setSessionStartedAt(new Date().toISOString());
     completionGuardRef.current = createCompletionGuard();
     setCompletingWorkout(false);
@@ -211,15 +241,24 @@ export default function ActiveSessionScreen() {
     if (!completionGuardRef.current.tryBegin()) return;
     setCompletingWorkout(true);
 
+    const schedule = getProgramScheduleSettings();
+    const snapshotCanonical = [
+      ...mandatoryExercises,
+      ...(optionalCoreEnabled ? (workout.optionalCore ?? []) : [])
+    ];
+
     const log = buildCompletedWorkoutLog({
       workout,
-      canonicalExercises,
+      canonicalExercises: snapshotCanonical,
       visibleExercises: loggableExercises,
       entries,
       feedback,
       lowEnergyMode: canUseLowEnergyMode ? lowEnergyMode : false,
-      cardioCompleted,
-      startedAt: sessionStartedAt
+      cardioCompleted: optionalCardioEnabled ? cardioCompleted : false,
+      startedAt: sessionStartedAt,
+      programStartDateKey: schedule.startDateKey,
+      optionalCoreSelected: optionalCoreEnabled,
+      optionalCardioSelected: optionalCardioEnabled
     });
 
     completeWorkout(log);
@@ -237,14 +276,21 @@ export default function ActiveSessionScreen() {
     );
   }
 
+  const showCardioBlock = !!workout.cardio && optionalCardioEnabled && !hideAddOns;
+  const showCorePrompt = (workout.optionalCore?.length ?? 0) > 0 && !hideAddOns;
+  const showCardioPrompt = !!workout.cardio && !hideAddOns;
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
         <Link to={`/workout/${workout.id}`} className={styles.back}>
           &larr; {workout.title}
         </Link>
+        <p className={styles.draftHint}>
+          {IDENTITY_DISPLAY_LABEL[workout.identity]} · {completedCount}/{loggableExercises.length}{" "}
+          done · saved automatically
+        </p>
         <h1 className={styles.title}>Log Your Sets</h1>
-        <p className={styles.draftHint}>Progress is saved automatically. Leave and return anytime.</p>
       </header>
 
       {canUseLowEnergyMode ? (
@@ -252,8 +298,9 @@ export default function ActiveSessionScreen() {
           <div>
             <span className={styles.lowEnergyLabel}>Low-Energy Mode</span>
             <p className={styles.lowEnergyHint}>
-              Trims to core exercises at 2 sets, skips optional work, and makes cardio optional. Targets
-              ~20-25 min.
+              Keeps your Primary Lift at full sets. Caps other mandatory lifts to 2 sets and hides
+              optional add-ons without deleting their values. Shorter session — not a different
+              workout.
             </p>
           </div>
           <button
@@ -284,17 +331,18 @@ export default function ActiveSessionScreen() {
           return (
             <section
               key={exercise.id}
-              className={isCompleted ? `${styles.exercise} ${styles.exerciseCompleted}` : styles.exercise}
+              className={
+                isCompleted ? `${styles.exercise} ${styles.exerciseCompleted}` : styles.exercise
+              }
             >
               <div className={styles.exerciseHeaderRow}>
                 <h2 className={styles.exerciseName}>{exercise.name}</h2>
+                <span className={styles.roleChip}>{roleDisplayLabel(exercise.role)}</span>
                 {isCompleted ? <span className={styles.completedBadge}>Completed</span> : null}
               </div>
               <p className={styles.exerciseMeta}>
-                Target: {exercise.targetSets} sets x {exercise.targetReps}
-                {sideLabel ? (
-                  <span className={styles.perSideLabel}> · {sideLabel}</span>
-                ) : null}
+                Target: {exercise.targetSets} sets × {exercise.targetReps}
+                {sideLabel ? <span className={styles.perSideLabel}> · {sideLabel}</span> : null}
               </p>
               <ExerciseVisual visualAssetKey={exercise.visualAssetKey} variant="session" />
               {fields.showWeight && lastWeight !== undefined ? (
@@ -302,12 +350,39 @@ export default function ActiveSessionScreen() {
               ) : null}
 
               {isCompleted ? (
-                <p className={styles.completedNote}>
-                  Exercise marked complete. Full workout is not finished until you tap Complete Workout
-                  below.
-                </p>
-              ) : null}
-
+                <div className={styles.completedSummary}>
+                  <p className={styles.completedNote}>
+                    Marked complete
+                    {displaySets.some(
+                      (s) =>
+                        s.reps > 0 ||
+                        s.weight > 0 ||
+                        (s.durationSeconds ?? 0) > 0
+                    )
+                      ? ` · ${displaySets
+                          .map((s, i) => {
+                            if (fields.showDurationSeconds) {
+                              return `S${i + 1}: ${s.durationSeconds ?? 0}s`;
+                            }
+                            if (fields.showWeight) {
+                              return `S${i + 1}: ${s.weight}×${s.reps}`;
+                            }
+                            return `S${i + 1}: ${s.reps}`;
+                          })
+                          .join(" · ")}`
+                      : ""}
+                    . Finish with Complete Workout below when ready.
+                  </p>
+                  <button
+                    type="button"
+                    className={styles.reopenButton}
+                    onClick={() => reopenExercise(exercise.id)}
+                  >
+                    Edit Exercise
+                  </button>
+                </div>
+              ) : (
+                <>
               <div className={gridClass} aria-disabled={isCompleted}>
                 <span className={styles.setsGridLabel}>Set</span>
                 {fields.showReps ? (
@@ -385,15 +460,6 @@ export default function ActiveSessionScreen() {
                 ))}
               </div>
 
-              {isCompleted ? (
-                <button
-                  type="button"
-                  className={styles.reopenButton}
-                  onClick={() => reopenExercise(exercise.id)}
-                >
-                  Edit Exercise
-                </button>
-              ) : (
                 <button
                   type="button"
                   className={styles.completeExerciseButton}
@@ -401,46 +467,61 @@ export default function ActiveSessionScreen() {
                 >
                   Complete Exercise
                 </button>
+                </>
               )}
             </section>
           );
         })}
       </div>
 
-      {workout.cardio ? (
+      {showCorePrompt || showCardioPrompt ? (
         <section className={styles.cardioSection}>
-          <h2 className={styles.exerciseName}>
-            Cardio{workout.cardio.optional || lowEnergyMode ? " (Optional)" : ""}
-          </h2>
+          <h2 className={styles.exerciseName}>Optional add-ons</h2>
+          <p className={styles.exerciseMeta}>Skipping is fine — not required to finish.</p>
+          {showCorePrompt ? (
+            <button
+              type="button"
+              className={optionalCoreEnabled ? styles.toggleOn : styles.completeExerciseButton}
+              onClick={() => setOptionalCoreEnabled((v) => !v)}
+            >
+              {optionalCoreEnabled ? "Hide 10 min Core" : "Add 10 min Core"}
+            </button>
+          ) : null}
+          {showCardioPrompt ? (
+            <button
+              type="button"
+              className={optionalCardioEnabled ? styles.toggleOn : styles.completeExerciseButton}
+              onClick={() => setOptionalCardioEnabled((v) => !v)}
+              style={{ marginTop: 8 }}
+            >
+              {optionalCardioEnabled
+                ? "Hide Cardio"
+                : `Add ${workout.cardio!.durationMinutes} min Cardio`}
+            </button>
+          ) : null}
+        </section>
+      ) : null}
+
+      {showCardioBlock ? (
+        <section className={styles.cardioSection}>
+          <h2 className={styles.exerciseName}>Cardio (Optional)</h2>
           <p className={styles.exerciseMeta}>
-            {workout.cardio.machine === "elliptical"
-              ? "Elliptical"
-              : workout.cardio.machine === "stationary_bike"
-                ? "Stationary Bike"
-                : "Rowing Machine"}
-            {workout.cardio.alternateMachine === "stationary_bike"
-              ? " or Stationary Bike"
-              : workout.cardio.alternateMachine === "elliptical"
-                ? " or Elliptical"
-                : ""}
-            {" — "}
-            Planned {workout.cardio.durationMinutes} min - {workout.cardio.intensity}
+            Elliptical or Stationary Bike — Planned {workout.cardio!.durationMinutes} min
           </p>
-          <ExerciseVisual visualAssetKey={workout.cardio.visualAssetKey} variant="session" />
+          <ExerciseVisual visualAssetKey={workout.cardio!.visualAssetKey} variant="session" />
           <label className={styles.checkboxRow}>
             <input
               type="checkbox"
               checked={cardioCompleted}
               onChange={(e) => setCardioCompleted(e.target.checked)}
             />
-            I completed the cardio block ({workout.cardio.durationMinutes} min)
+            I completed the cardio block ({workout.cardio!.durationMinutes} min)
           </label>
         </section>
       ) : null}
 
       <section className={styles.feedbackSection}>
         <h2 className={styles.exerciseName}>How did that feel?</h2>
-
         <label className={styles.feedbackField}>
           <span>Difficulty: {feedback.difficulty}/10</span>
           <input
@@ -451,7 +532,6 @@ export default function ActiveSessionScreen() {
             onChange={(e) => updateFeedback("difficulty", Number(e.target.value))}
           />
         </label>
-
         <div className={styles.feedbackField}>
           <span>Energy</span>
           <div className={styles.energyOptions}>
@@ -459,7 +539,9 @@ export default function ActiveSessionScreen() {
               <button
                 key={option}
                 type="button"
-                className={feedback.energy === option ? styles.energyOptionActive : styles.energyOption}
+                className={
+                  feedback.energy === option ? styles.energyOptionActive : styles.energyOption
+                }
                 onClick={() => updateFeedback("energy", option)}
               >
                 {option}
@@ -467,7 +549,6 @@ export default function ActiveSessionScreen() {
             ))}
           </div>
         </div>
-
         <label className={styles.feedbackField}>
           <span>Lower-back pain: {feedback.lowerBackPain}/10</span>
           <input
@@ -478,7 +559,6 @@ export default function ActiveSessionScreen() {
             onChange={(e) => updateFeedback("lowerBackPain", Number(e.target.value))}
           />
         </label>
-
         <label className={styles.feedbackField}>
           <span>Knee pain: {feedback.kneePain}/10</span>
           <input
@@ -489,7 +569,6 @@ export default function ActiveSessionScreen() {
             onChange={(e) => updateFeedback("kneePain", Number(e.target.value))}
           />
         </label>
-
         <label className={styles.feedbackField}>
           <span>Shoulder pain: {feedback.shoulderPain}/10</span>
           <input
@@ -500,7 +579,6 @@ export default function ActiveSessionScreen() {
             onChange={(e) => updateFeedback("shoulderPain", Number(e.target.value))}
           />
         </label>
-
         <label className={styles.feedbackField}>
           <span>Note (optional)</span>
           <textarea
@@ -521,7 +599,6 @@ export default function ActiveSessionScreen() {
       >
         {completingWorkout ? "Saving…" : "Complete Workout"}
       </button>
-
       <button type="button" className={styles.discardButton} onClick={handleDiscardDraft}>
         Discard Workout Draft
       </button>

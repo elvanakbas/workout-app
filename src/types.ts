@@ -14,7 +14,53 @@ export type MuscleGroup =
   | "calves"
   | "core";
 
+/**
+ * Stored exercise roles (stable for History / drafts).
+ * User-facing labels are mapped in ROLE_DISPLAY_LABEL — do not rename these
+ * values without a normalization layer.
+ */
 export type ExerciseRole = "primary" | "secondary" | "isolation" | "core" | "cardio";
+
+/** Day identity within the V3 Push / Quad / Pull / Posterior week. */
+export type WorkoutIdentity = "push" | "quad" | "pull" | "posterior";
+
+export type PreferredWeekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+/** Authored program version string for V3 identity work. */
+export const PROGRAM_VERSION = "v3-program-identity" as const;
+export type ProgramVersionId = typeof PROGRAM_VERSION | "v2";
+
+export const ROLE_DISPLAY_LABEL: Record<ExerciseRole, string> = {
+  primary: "Primary Lift",
+  secondary: "Secondary Lift",
+  isolation: "Accessory",
+  core: "Stability",
+  cardio: "Cardio"
+};
+
+export const IDENTITY_DISPLAY_LABEL: Record<WorkoutIdentity, string> = {
+  push: "Push",
+  quad: "Quad",
+  pull: "Pull",
+  posterior: "Posterior"
+};
+
+export const PREFERRED_WEEKDAY_LABEL: Record<PreferredWeekday, string> = {
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday"
+};
 
 export type EquipmentCategory =
   | "machine"
@@ -100,7 +146,7 @@ export interface CardioBlock {
   visualAssetKey?: string;
 }
 
-/** "short" = a Workday session (~35-45 min); "long" = an Off Day session (~70-90 min). */
+/** "short" = Workday (~40–55 min main); "long" = Off Day (~70–95 min main before optionals). */
 export type SessionLength = "short" | "long";
 
 /** A fully authored workout in the 32-workout program. */
@@ -115,7 +161,17 @@ export interface Workout {
   variantLabel: string;
   variant: WorkoutVariant;
   focusArea: FocusArea;
-  /** Training block: 1 = weeks 1-5, 2 = weeks 6-8. */
+  /** V3 training identity (Push / Quad / Pull / Posterior). */
+  identity: WorkoutIdentity;
+  /** Preferred weekday for this variant (guides schedule; never locks). */
+  preferredWeekday: PreferredWeekday;
+  /**
+   * Days after Week 1 Upper A (program start date) for this order.
+   * Slot offsets within a week: 0, 1, 3, 5; then +7 per week.
+   */
+  plannedDayOffset: number;
+  programVersion: typeof PROGRAM_VERSION;
+  /** Training block: 1 = weeks 1-5, 2 = weeks 6-8 (phase label only in V3). */
   trainingBlock: 1 | 2;
   /** Primary muscle groups this session targets, for display. */
   primaryMuscleGroups: MuscleGroup[];
@@ -127,8 +183,13 @@ export interface Workout {
   /** Load/effort guidance for the week (reps-in-reserve, no-failure reminders, etc). */
   intensityGuidance: string;
   warmup: WarmupItem[];
+  /** Mandatory strength movements (excludes optional add-ons). */
   strength: Exercise[];
+  /** Mandatory stability/core in the main workout (not optional add-on). */
   core: Exercise[];
+  /** Optional Core add-on (Friday/Sunday). All entries must be optional:true. */
+  optionalCore?: Exercise[];
+  /** Optional cardio add-on when present; must be optional:true in V3. */
   cardio?: CardioBlock;
 }
 
@@ -182,6 +243,10 @@ export interface ExerciseLog {
   visualAssetKey?: string;
   /** Explicit status for rich logs; legacy logs may only have `completed`. */
   status?: ExerciseLogStatus;
+  /** V3 snapshot of stored role (primary/secondary/isolation/core). */
+  role?: ExerciseRole;
+  /** V3: whether this entry was an optional add-on movement. */
+  optional?: boolean;
 }
 
 export type EnergyLevel = "low" | "normal" | "high";
@@ -218,13 +283,14 @@ export interface WorkoutLogCardioSnapshot {
  * Schema versions for completed WorkoutLog documents in `workout-app:v1:logs`.
  * - undefined / 1: legacy V1/V2 logs (title + entries with exerciseId/sets)
  * - 2: Phase 4 rich immutable snapshots
+ * - 3: V3 program-identity snapshots (additive fields only)
  */
-export type WorkoutLogSchemaVersion = 1 | 2;
+export type WorkoutLogSchemaVersion = 1 | 2 | 3;
 
 /** A record of one completed workout session. */
 export interface WorkoutLog {
   id: string;
-  /** Rich Phase 4 logs set this to 2. Older logs omit it or behave as 1. */
+  /** Rich Phase 4 logs set this to 2; V3 completions use 3. Older logs omit it or behave as 1. */
   schemaVersion?: WorkoutLogSchemaVersion;
   workoutId: string;
   order: number;
@@ -259,6 +325,18 @@ export interface WorkoutLog {
    * non-canonical key; omitted for normal completions written to canonical.
    */
   historySource?: "legacy-v1" | "legacy-unknown";
+  /** V3 additive snapshots — never backfilled onto old logs. */
+  programVersion?: string;
+  workoutIdentity?: WorkoutIdentity;
+  preferredWeekday?: PreferredWeekday;
+  plannedDateKey?: string;
+  /** Local YYYY-MM-DD from startedAt ?? completedAt (Nutrition link source). */
+  actualDateKey?: string;
+  optionalCoreSelected?: boolean;
+  optionalCoreCompleted?: boolean;
+  optionalCardioSelected?: boolean;
+  optionalCardioCompleted?: boolean;
+  mainWorkoutCompleted?: boolean;
 }
 
 /**
@@ -276,6 +354,17 @@ export interface ActiveSessionDraft {
   cardioCompleted: boolean;
   entries: ExerciseLog[];
   feedback: SessionFeedback;
+  /** Set on V3-migrated / new drafts. */
+  programVersion?: string;
+  /** User expanded Optional Core add-on. */
+  optionalCoreEnabled?: boolean;
+  /** User expanded Optional Cardio add-on. */
+  optionalCardioEnabled?: boolean;
+  /**
+   * Entries for exercise IDs no longer in the live workout catalog for this
+   * workoutId. Preserved for recovery; excluded from active session UI.
+   */
+  legacyEntries?: ExerciseLog[];
 }
 
 export const PROGRAM_LENGTH = 32;

@@ -1,5 +1,6 @@
 import {
   PROGRAM_LENGTH,
+  PROGRAM_VERSION,
   type CardioBlock,
   type EquipmentCategory,
   type Exercise,
@@ -7,26 +8,23 @@ import {
   type FocusArea,
   type MeasurementType,
   type MuscleGroup,
+  type PreferredWeekday,
   type ProgramSlot,
   type SessionLength,
   type WarmupItem,
   type Workout,
+  type WorkoutIdentity,
   type WorkoutVariant
 } from "../types";
+import { plannedDayOffsetForOrder, preferredWeekdayForVariant } from "../lib/schedule";
 
 /**
- * V2 Upper/Lower 8-week / 32-workout program.
+ * V3 Program Identity — Upper/Lower 8-week / 32-workout plan.
  *
- * Weekly cycle: Upper A (Workday) → Lower A (Workday) → Upper B (Off Day) → Lower B (Off Day).
- * Weeks 1–4: Block 1. Week 5: Block 1 deload. Weeks 6–8: Block 2.
- *
- * Exercise `id`s are stable. Retained V1 IDs keep historical weight lookup working
- * where the movement is the same; new dumbbell/machine variants get new IDs.
+ * Weekly cycle: Upper A Push (Tue) → Lower A Quad (Wed) → Upper B Pull (Fri) → Lower B Posterior (Sun).
+ * Same exercises weeks 1–8. Week 5 deload (~35–45% set reduction).
+ * Workout IDs remain `w1`…`w32` so completed progress maps naturally.
  */
-
-// ---------------------------------------------------------------------------
-// Catalog
-// ---------------------------------------------------------------------------
 
 interface CatalogEntry {
   id: string;
@@ -44,7 +42,6 @@ interface CatalogEntry {
 }
 
 const EX: Record<string, CatalogEntry> = {
-  // --- Retained IDs (same movement family as V1) ---
   chestPressMachine: {
     id: "chest-press-machine",
     name: "Machine Chest Press",
@@ -60,7 +57,7 @@ const EX: Record<string, CatalogEntry> = {
     id: "lat-pulldown",
     name: "Neutral-Grip Lat Pulldown",
     measurementType: "reps-weight",
-    role: "primary",
+    role: "secondary",
     equipmentCategory: "cable",
     primaryMuscles: ["back"],
     secondaryMuscles: ["biceps"],
@@ -185,7 +182,7 @@ const EX: Record<string, CatalogEntry> = {
     id: "seated-cable-row",
     name: "Seated Cable Row",
     measurementType: "reps-weight",
-    role: "primary",
+    role: "secondary",
     equipmentCategory: "cable",
     primaryMuscles: ["back"],
     secondaryMuscles: ["biceps"],
@@ -212,13 +209,11 @@ const EX: Record<string, CatalogEntry> = {
     safetyNote: "Lower-back-sensitive: control the movement and avoid yanking with a heavy load.",
     visualAssetKey: "cable-crunch-kneeling"
   },
-
-  // --- New V2 movements ---
   chestSupportedDbRow: {
     id: "chest-supported-dumbbell-row",
     name: "Chest-Supported Dumbbell Row",
     measurementType: "reps-weight",
-    role: "primary",
+    role: "secondary",
     equipmentCategory: "dumbbell",
     primaryMuscles: ["back"],
     secondaryMuscles: ["biceps"],
@@ -258,9 +253,10 @@ const EX: Record<string, CatalogEntry> = {
     id: "dumbbell-romanian-deadlift",
     name: "Dumbbell Romanian Deadlift",
     measurementType: "reps-weight",
-    role: "primary",
+    role: "secondary",
     equipmentCategory: "dumbbell",
-    primaryMuscles: ["hamstrings", "glutes"],
+    primaryMuscles: ["hamstrings"],
+    secondaryMuscles: ["glutes"],
     safetyNote:
       "Lower-back-sensitive: soft knees, hinge at the hips, keep a neutral spine; do not round the lower back.",
     visualAssetKey: "dumbbell-romanian-deadlift"
@@ -269,7 +265,7 @@ const EX: Record<string, CatalogEntry> = {
     id: "incline-dumbbell-press",
     name: "Incline Dumbbell Press",
     measurementType: "reps-weight",
-    role: "primary",
+    role: "secondary",
     equipmentCategory: "dumbbell",
     primaryMuscles: ["chest"],
     secondaryMuscles: ["shoulders", "triceps"],
@@ -343,7 +339,8 @@ const EX: Record<string, CatalogEntry> = {
     measurementType: "reps-weight",
     role: "secondary",
     equipmentCategory: "dumbbell",
-    primaryMuscles: ["quadriceps", "glutes"],
+    primaryMuscles: ["quadriceps"],
+    secondaryMuscles: ["glutes"],
     unilateral: true,
     targetUnitLabel: "per side",
     safetyNote:
@@ -393,12 +390,18 @@ const EX: Record<string, CatalogEntry> = {
     primaryMuscles: ["triceps"],
     notes: "Straight bar or V-bar attachment.",
     visualAssetKey: "cable-triceps-pushdown"
+  },
+  cableFacePull: {
+    id: "cable-face-pull",
+    name: "Cable Face Pull",
+    measurementType: "reps-weight",
+    role: "isolation",
+    equipmentCategory: "cable",
+    primaryMuscles: ["shoulders"],
+    secondaryMuscles: ["back"],
+    visualAssetKey: "cable-face-pull"
   }
 };
-
-// ---------------------------------------------------------------------------
-// Phase / deload configuration
-// ---------------------------------------------------------------------------
 
 interface PhaseConfig {
   label: string;
@@ -413,8 +416,8 @@ interface PhaseConfig {
 
 const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   1: {
-    label: "Block 1 — Technique & Base",
-    guidance: "Learn the Block 1 movements with conservative loads. Keep 2–3 reps in reserve. No failure training.",
+    label: "Week 1 — Establish loads",
+    guidance: "Learn working weights with controlled form. Keep about 3 reps in reserve. No failure training.",
     trainingBlock: 1,
     isDeload: false,
     strengthRestSeconds: 75,
@@ -423,8 +426,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
     cardioIntensity: "Easy, conversational pace. Elliptical or stationary bike."
   },
   2: {
-    label: "Block 1 — Base Volume",
-    guidance: "Same Block 1 structure. Add a little load only if week 1 felt fully controlled. Keep 2–3 reps in reserve.",
+    label: "Week 2 — Add reps",
+    guidance: "Add valid repetitions in the prescribed ranges. Keep about 2–3 reps in reserve.",
     trainingBlock: 1,
     isDeload: false,
     strengthRestSeconds: 75,
@@ -433,8 +436,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
     cardioIntensity: "Easy, conversational pace. Elliptical or stationary bike."
   },
   3: {
-    label: "Block 1 — Controlled Progression",
-    guidance: "Progress load or reps slightly versus weeks 1–2. Keep 1–2 reps in reserve. No failure training.",
+    label: "Week 3 — Progress",
+    guidance: "Add repetitions or a small load increase. Keep about 2 reps in reserve. No failure training.",
     trainingBlock: 1,
     isDeload: false,
     strengthRestSeconds: 90,
@@ -443,8 +446,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
     cardioIntensity: "Moderate, steady pace. Elliptical or stationary bike."
   },
   4: {
-    label: "Block 1 — Peak Week",
-    guidance: "Aim slightly heavier than week 3 at the same sets. Keep 1–2 reps in reserve. No failure training.",
+    label: "Week 4 — Peak controlled",
+    guidance: "Controlled hardest week. Keep about 1–2 reps in reserve. No routine failure.",
     trainingBlock: 1,
     isDeload: false,
     strengthRestSeconds: 90,
@@ -453,9 +456,9 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
     cardioIntensity: "Moderate, steady pace. Elliptical or stationary bike."
   },
   5: {
-    label: "Deload (Block 1)",
+    label: "Week 5 — Deload",
     guidance:
-      "Deload: same Block 1 exercises with reduced sets and lighter loads. Keep 3–4 reps in reserve. No failure training.",
+      "Deload: same movements with roughly 35–45% fewer working sets and lighter loads. Keep 3–4 reps in reserve. No failure.",
     trainingBlock: 1,
     isDeload: true,
     strengthRestSeconds: 60,
@@ -464,8 +467,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
     cardioIntensity: "Easy recovery pace only. Elliptical or stationary bike."
   },
   6: {
-    label: "Block 2 — Controlled Introduction",
-    guidance: "Introduce Block 2 movements with controlled loads. Keep 2–3 reps in reserve. No failure training.",
+    label: "Week 6 — Resume",
+    guidance: "Resume normal set structure conservatively. Keep about 3 reps in reserve.",
     trainingBlock: 2,
     isDeload: false,
     strengthRestSeconds: 75,
@@ -474,8 +477,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
     cardioIntensity: "Easy-to-moderate pace. Elliptical or stationary bike."
   },
   7: {
-    label: "Block 2 — Progression",
-    guidance: "Add reps or load versus week 6 at the same set structure. Keep 1–2 reps in reserve. No failure training.",
+    label: "Week 7 — Build",
+    guidance: "Add repetitions or load versus week 6. Keep about 2 reps in reserve.",
     trainingBlock: 2,
     isDeload: false,
     strengthRestSeconds: 90,
@@ -484,9 +487,8 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
     cardioIntensity: "Moderate, steady pace. Elliptical or stationary bike."
   },
   8: {
-    label: "Block 2 — Controlled Performance",
-    guidance:
-      "Controlled performance week. Preserve set counts with solid form. Keep about 2 reps in reserve. No failure training.",
+    label: "Week 8 — Performance",
+    guidance: "Controlled performance week. Keep about 1–2 reps in reserve. No mandatory failure test.",
     trainingBlock: 2,
     isDeload: false,
     strengthRestSeconds: 90,
@@ -502,36 +504,42 @@ interface Prescription {
   reps: string;
   optional?: boolean;
   restSeconds?: number;
+  role?: ExerciseRole;
+  primaryMuscles?: MuscleGroup[];
+  secondaryMuscles?: MuscleGroup[];
+}
+
+/** ~35–45% weekly set reduction on deload while keeping Primary Lift present.
+ * Per-day rounding of ×0.6 / ×0.55 may slightly exceed 45% on a single day;
+ * validators gate the weekly total, not each day independently.
+ */
+function deloadSets(sets: number, role: ExerciseRole): number {
+  const factor = role === "primary" ? 0.6 : 0.55;
+  return Math.max(1, Math.round(sets * factor));
 }
 
 function applyDeload(rx: Prescription, isDeload: boolean): Prescription {
   if (!isDeload) return rx;
-  const role = rx.entry.role;
-  let sets = rx.sets;
-  if (role === "primary") {
-    sets = Math.max(1, rx.sets - 1);
-  } else {
-    // Accessories and core: 2 sets on deload.
-    sets = 2;
-  }
-  return { ...rx, sets };
+  const role = rx.role ?? rx.entry.role;
+  return { ...rx, sets: deloadSets(rx.sets, role) };
 }
 
 function buildExercise(rx: Prescription, phase: PhaseConfig): Exercise {
   const adjusted = applyDeload(rx, phase.isDeload);
+  const role = adjusted.role ?? adjusted.entry.role;
   const rest =
     adjusted.restSeconds ??
-    (adjusted.entry.role === "core" ? phase.coreRestSeconds : phase.strengthRestSeconds);
+    (role === "core" ? phase.coreRestSeconds : phase.strengthRestSeconds);
   return {
     id: adjusted.entry.id,
     name: adjusted.entry.name,
     targetSets: adjusted.sets,
     targetReps: adjusted.reps,
     measurementType: adjusted.entry.measurementType,
-    role: adjusted.entry.role,
+    role,
     equipmentCategory: adjusted.entry.equipmentCategory,
-    primaryMuscles: adjusted.entry.primaryMuscles,
-    secondaryMuscles: adjusted.entry.secondaryMuscles,
+    primaryMuscles: adjusted.primaryMuscles ?? adjusted.entry.primaryMuscles,
+    secondaryMuscles: adjusted.secondaryMuscles ?? adjusted.entry.secondaryMuscles,
     unilateral: adjusted.entry.unilateral,
     targetUnitLabel: adjusted.entry.targetUnitLabel,
     restSeconds: rest,
@@ -551,13 +559,13 @@ function warmupItem(
   return { id, name, duration, safetyNote: options.safetyNote, visualAssetKey: options.visualAssetKey };
 }
 
-function makeCardio(phase: PhaseConfig, optional: boolean): CardioBlock {
+function makeCardio(phase: PhaseConfig): CardioBlock {
   return {
     machine: "elliptical",
     alternateMachine: "stationary_bike",
     durationMinutes: phase.cardioMinutes,
     intensity: phase.cardioIntensity,
-    optional,
+    optional: true,
     measurementType: "cardio-duration",
     role: "cardio",
     equipmentCategory: "cardio-machine",
@@ -565,25 +573,24 @@ function makeCardio(phase: PhaseConfig, optional: boolean): CardioBlock {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Templates
-// ---------------------------------------------------------------------------
-
 type TemplateId = "upperA" | "lowerA" | "upperB" | "lowerB";
 
 interface TemplateDef {
   variant: WorkoutVariant;
   variantLabel: string;
+  identity: WorkoutIdentity;
+  preferredWeekday: PreferredWeekday;
   focusArea: FocusArea;
   length: SessionLength;
   estimatedDurationMinutes: { min: number; max: number };
   primaryMuscleGroups: MuscleGroup[];
-  titleFor: (block: 1 | 2) => string;
+  title: string;
   focus: string;
   warmup: WarmupItem[];
-  strength: (block: 1 | 2) => Prescription[];
-  core: (block: 1 | 2) => Prescription[];
-  hasCardio: boolean;
+  strength: Prescription[];
+  core: Prescription[];
+  optionalCore: Prescription[];
+  hasOptionalCardio: boolean;
 }
 
 const UPPER_WARMUP: WarmupItem[] = [
@@ -607,78 +614,86 @@ const LOWER_WARMUP: WarmupItem[] = [
   })
 ];
 
+/**
+ * Final V3 templates (same movements all weeks).
+ *
+ * Mandatory volume (normal week, primaryMuscles only):
+ * Chest 7 (A4+B3) — documented −1 vs target 8 for Off-Day duration budget;
+ *   second chest exposure remains 3 hard incline sets.
+ * Back 12, Shoulders 8, Biceps 5, Triceps 5, Quads 10, Ham 8, Glutes 8, Calves 6, Core 4.
+ */
 const TEMPLATES: Record<TemplateId, TemplateDef> = {
   upperA: {
     variant: "upper-a",
     variantLabel: "Upper A",
+    identity: "push",
+    preferredWeekday: "tuesday",
     focusArea: "upper",
     length: "short",
-    estimatedDurationMinutes: { min: 35, max: 45 },
-    primaryMuscleGroups: ["chest", "back", "shoulders", "biceps", "triceps"],
-    titleFor: (block) => (block === 1 ? "Upper A — Workday" : "Upper A2 — Workday"),
-    focus: "Chest · Back · Shoulders · Biceps · Triceps",
+    estimatedDurationMinutes: { min: 40, max: 50 },
+    primaryMuscleGroups: ["chest", "shoulders", "triceps"],
+    title: "Upper A — Push",
+    focus: "Push emphasis · chest, shoulders, triceps",
     warmup: UPPER_WARMUP,
-    strength: (block) =>
-      block === 1
-        ? [
-            { entry: EX.chestPressMachine, sets: 3, reps: "8-12" },
-            { entry: EX.latPulldown, sets: 3, reps: "8-12" },
-            { entry: EX.chestSupportedDbRow, sets: 3, reps: "10-12" },
-            { entry: EX.seatedDbShoulderPress, sets: 2, reps: "8-12" },
-            { entry: EX.dbHammerCurl, sets: 3, reps: "10-12" },
-            { entry: EX.ropeTricepsPushdown, sets: 3, reps: "10-12" }
-          ]
-        : [
-            { entry: EX.flatDbPress, sets: 3, reps: "8-12" },
-            { entry: EX.latPulldown, sets: 3, reps: "8-12" },
-            { entry: EX.seatedCableRow, sets: 3, reps: "10-12" },
-            { entry: EX.machineShoulderPress, sets: 2, reps: "8-12" },
-            { entry: EX.alternatingDbCurl, sets: 3, reps: "10-12" },
-            { entry: EX.cableTricepsPushdown, sets: 3, reps: "10-12" }
-          ],
-    core: () => [],
-    hasCardio: false
+    strength: [
+      { entry: EX.chestPressMachine, sets: 4, reps: "8-12", role: "primary", restSeconds: 90 },
+      { entry: EX.seatedDbShoulderPress, sets: 3, reps: "8-12", role: "secondary", restSeconds: 90 },
+      { entry: EX.ropeTricepsPushdown, sets: 3, reps: "10-12", role: "isolation", restSeconds: 60 },
+      { entry: EX.dbLateralRaise, sets: 2, reps: "12-15", role: "isolation", restSeconds: 60 },
+      {
+        entry: EX.chestSupportedDbRow,
+        sets: 2,
+        reps: "10-12",
+        role: "secondary",
+        restSeconds: 75
+      },
+      { entry: EX.dbHammerCurl, sets: 2, reps: "10-12", role: "isolation", restSeconds: 60 }
+    ],
+    core: [],
+    optionalCore: [],
+    hasOptionalCardio: false
   },
   lowerA: {
     variant: "lower-a",
     variantLabel: "Lower A",
+    identity: "quad",
+    preferredWeekday: "wednesday",
     focusArea: "lower",
     length: "short",
-    estimatedDurationMinutes: { min: 35, max: 45 },
-    primaryMuscleGroups: ["quadriceps", "hamstrings", "glutes", "calves", "core"],
-    titleFor: (block) => (block === 1 ? "Lower A — Workday" : "Lower A2 — Workday"),
-    focus: "Quads · Hamstrings · Glutes · Calves · Core",
+    estimatedDurationMinutes: { min: 40, max: 55 },
+    primaryMuscleGroups: ["quadriceps", "calves", "core"],
+    title: "Lower A — Quad",
+    focus: "Quad emphasis · knees, calves, core",
     warmup: LOWER_WARMUP,
-    strength: (block) =>
-      block === 1
-        ? [
-            { entry: EX.legPress, sets: 3, reps: "10-12" },
-            { entry: EX.dbRomanianDeadlift, sets: 3, reps: "8-12" },
-            { entry: EX.seatedLegCurl, sets: 3, reps: "10-12" },
-            { entry: EX.seatedCalfRaise, sets: 3, reps: "12-15" }
-          ]
-        : [
-            { entry: EX.hackSquat, sets: 3, reps: "8-12" },
-            { entry: EX.hipThrust, sets: 3, reps: "10-12" },
-            { entry: EX.seatedLegCurl, sets: 3, reps: "10-12" },
-            { entry: EX.legExtension, sets: 3, reps: "12-15" },
-            { entry: EX.seatedCalfRaise, sets: 3, reps: "12-15" }
-          ],
-    core: (block) =>
-      block === 1
-        ? [{ entry: EX.deadBug, sets: 3, reps: "8-12 per side" }]
-        : [{ entry: EX.sidePlank, sets: 3, reps: "20-45 sec per side" }],
-    hasCardio: false
+    strength: [
+      { entry: EX.legPress, sets: 4, reps: "10-12", role: "primary", restSeconds: 90 },
+      { entry: EX.legExtension, sets: 4, reps: "12-15", role: "secondary", restSeconds: 60 },
+      { entry: EX.seatedCalfRaise, sets: 3, reps: "12-15", role: "isolation", restSeconds: 45 },
+      {
+        entry: EX.dbRomanianDeadlift,
+        sets: 2,
+        reps: "8-12",
+        role: "secondary",
+        primaryMuscles: ["hamstrings"],
+        secondaryMuscles: ["glutes"],
+        restSeconds: 90
+      }
+    ],
+    core: [{ entry: EX.deadBug, sets: 2, reps: "8-12 per side", role: "core", restSeconds: 45 }],
+    optionalCore: [],
+    hasOptionalCardio: false
   },
   upperB: {
     variant: "upper-b",
     variantLabel: "Upper B",
+    identity: "pull",
+    preferredWeekday: "friday",
     focusArea: "upper",
     length: "long",
     estimatedDurationMinutes: { min: 70, max: 90 },
-    primaryMuscleGroups: ["chest", "back", "shoulders", "biceps", "triceps"],
-    titleFor: (block) => (block === 1 ? "Upper B — Off Day" : "Upper B2 — Off Day"),
-    focus: "Chest · Back · Shoulders · Biceps · Triceps",
+    primaryMuscleGroups: ["back", "shoulders", "biceps"],
+    title: "Upper B — Pull",
+    focus: "Pull emphasis · lats, mid-back, rear delts, biceps",
     warmup: [
       warmupItem("warmup-bike-easy-long", "Easy Stationary Bike Warm-Up", "5 min", {
         visualAssetKey: "stationary-bike"
@@ -688,45 +703,54 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
       }),
       warmupItem("warmup-band-pull-apart-long", "Band Pull-Aparts", "12 reps", {
         visualAssetKey: "band-pull-apart"
-      }),
-      warmupItem("warmup-face-pull-light", "Cable Face Pull (Light)", "12 reps", {
-        visualAssetKey: "cable-face-pull"
       })
     ],
-    strength: (block) =>
-      block === 1
-        ? [
-            { entry: EX.inclineDbPress, sets: 4, reps: "8-10" },
-            { entry: EX.chestSupportedRow, sets: 4, reps: "8-10" },
-            { entry: EX.latPulldown, sets: 3, reps: "10-12" },
-            { entry: EX.cableFly, sets: 3, reps: "12-15" },
-            { entry: EX.dbLateralRaise, sets: 3, reps: "12-15" },
-            { entry: EX.reversePecDeck, sets: 3, reps: "12-15" },
-            { entry: EX.inclineDbCurl, sets: 3, reps: "10-12" },
-            { entry: EX.overheadCableTriceps, sets: 3, reps: "10-12" }
-          ]
-        : [
-            { entry: EX.inclineDbPress, sets: 4, reps: "8-10" },
-            { entry: EX.chestSupportedDbRow, sets: 4, reps: "8-10" },
-            { entry: EX.latPulldown, sets: 3, reps: "8-12" },
-            { entry: EX.cableFly, sets: 3, reps: "12-15" },
-            { entry: EX.dbLateralRaise, sets: 3, reps: "12-15" },
-            { entry: EX.reversePecDeck, sets: 3, reps: "12-15" },
-            { entry: EX.inclineDbCurl, sets: 3, reps: "10-12" },
-            { entry: EX.overheadCableTriceps, sets: 3, reps: "10-12" }
-          ],
-    core: () => [],
-    hasCardio: false
+    strength: [
+      { entry: EX.chestSupportedRow, sets: 4, reps: "8-10", role: "primary", restSeconds: 90 },
+      { entry: EX.latPulldown, sets: 3, reps: "8-12", role: "secondary", restSeconds: 90 },
+      { entry: EX.seatedCableRow, sets: 3, reps: "10-12", role: "secondary", restSeconds: 75 },
+      { entry: EX.reversePecDeck, sets: 3, reps: "12-15", role: "isolation", restSeconds: 60 },
+      { entry: EX.inclineDbCurl, sets: 3, reps: "10-12", role: "isolation", restSeconds: 60 },
+      {
+        entry: EX.inclineDbPress,
+        sets: 3,
+        reps: "8-10",
+        role: "secondary",
+        restSeconds: 90
+      },
+      {
+        entry: EX.overheadCableTriceps,
+        sets: 2,
+        reps: "10-12",
+        role: "isolation",
+        restSeconds: 60
+      }
+    ],
+    core: [],
+    optionalCore: [
+      { entry: EX.deadBug, sets: 2, reps: "8-10 per side", optional: true, role: "core", restSeconds: 30 },
+      {
+        entry: EX.pallofPress,
+        sets: 2,
+        reps: "8-10 per side",
+        optional: true,
+        role: "core",
+        restSeconds: 45
+      }
+    ],
+    hasOptionalCardio: true
   },
   lowerB: {
     variant: "lower-b",
     variantLabel: "Lower B",
+    identity: "posterior",
+    preferredWeekday: "sunday",
     focusArea: "lower",
     length: "long",
-    estimatedDurationMinutes: { min: 70, max: 90 },
-    primaryMuscleGroups: ["quadriceps", "hamstrings", "glutes", "calves", "core"],
-    titleFor: (block) => (block === 1 ? "Lower B — Off Day" : "Lower B2 — Off Day"),
-    focus: "Quads · Hamstrings · Glutes · Calves · Core",
+    estimatedDurationMinutes: { min: 75, max: 95 },
+    primaryMuscleGroups: ["glutes", "hamstrings", "core"],
+    title: "Lower B — Posterior",
+    focus: "Posterior chain · glutes, hamstrings, stability",
     warmup: [
       warmupItem("warmup-elliptical-easy-long", "Easy Elliptical Warm-Up", "5 min", {
         visualAssetKey: "elliptical"
@@ -743,35 +767,58 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
         visualAssetKey: "cat-cow"
       })
     ],
-    strength: (block) =>
-      block === 1
-        ? [
-            { entry: EX.hackSquat, sets: 4, reps: "8-10" },
-            { entry: EX.dbBulgarianSplitSquat, sets: 3, reps: "8-10 per side" },
-            { entry: EX.hipThrust, sets: 4, reps: "8-12" },
-            { entry: EX.seatedLegCurl, sets: 3, reps: "10-12" },
-            { entry: EX.legExtension, sets: 3, reps: "12-15" },
-            { entry: EX.seatedCalfRaise, sets: 3, reps: "12-15" }
-          ]
-        : [
-            { entry: EX.legPress, sets: 4, reps: "10" },
-            { entry: EX.dbBulgarianSplitSquat, sets: 2, reps: "8-10 per side" },
-            { entry: EX.dbRomanianDeadlift, sets: 4, reps: "8-10" },
-            { entry: EX.seatedLegCurl, sets: 3, reps: "10-12" },
-            { entry: EX.hipAbduction, sets: 3, reps: "12-15" },
-            { entry: EX.seatedCalfRaise, sets: 3, reps: "12-15" }
-          ],
-    core: (block) =>
-      block === 1
-        ? [
-            { entry: EX.pallofPress, sets: 3, reps: "10-12 per side", restSeconds: 60 },
-            { entry: EX.forearmPlank, sets: 3, reps: "30-60 sec" }
-          ]
-        : [
-            { entry: EX.cableCrunch, sets: 3, reps: "10-15" },
-            { entry: EX.pallofPress, sets: 3, reps: "10-12 per side", restSeconds: 60 }
-          ],
-    hasCardio: true
+    strength: [
+      { entry: EX.hipThrust, sets: 4, reps: "8-12", role: "primary", restSeconds: 90 },
+      {
+        entry: EX.dbRomanianDeadlift,
+        sets: 3,
+        reps: "8-10",
+        role: "secondary",
+        primaryMuscles: ["hamstrings"],
+        secondaryMuscles: ["glutes"],
+        restSeconds: 90
+      },
+      { entry: EX.seatedLegCurl, sets: 3, reps: "10-12", role: "secondary", restSeconds: 60 },
+      {
+        entry: EX.dbBulgarianSplitSquat,
+        sets: 2,
+        reps: "8-10 per side",
+        role: "secondary",
+        primaryMuscles: ["quadriceps"],
+        secondaryMuscles: ["glutes"],
+        restSeconds: 75
+      },
+      { entry: EX.hipAbduction, sets: 4, reps: "12-15", role: "isolation", restSeconds: 45 },
+      { entry: EX.seatedCalfRaise, sets: 3, reps: "12-15", role: "isolation", restSeconds: 45 }
+    ],
+    core: [
+      {
+        entry: EX.pallofPress,
+        sets: 2,
+        reps: "10-12 per side",
+        role: "core",
+        restSeconds: 45
+      }
+    ],
+    optionalCore: [
+      {
+        entry: EX.forearmPlank,
+        sets: 2,
+        reps: "30-45 sec",
+        optional: true,
+        role: "core",
+        restSeconds: 30
+      },
+      {
+        entry: EX.sidePlank,
+        sets: 2,
+        reps: "20-40 sec per side",
+        optional: true,
+        role: "core",
+        restSeconds: 30
+      }
+    ],
+    hasOptionalCardio: true
   }
 };
 
@@ -780,19 +827,26 @@ const VARIANT_SEQUENCE: TemplateId[] = ["upperA", "lowerA", "upperB", "lowerB"];
 function buildWorkout(order: number, week: number, templateId: TemplateId): Workout {
   const phase = PHASE_BY_WEEK[week];
   const template = TEMPLATES[templateId];
-  const block = phase.trainingBlock;
-  const strength = template.strength(block).map((rx) => buildExercise(rx, phase));
-  const core = template.core(block).map((rx) => buildExercise(rx, phase));
+  const strength = template.strength.map((rx) => buildExercise(rx, phase));
+  const core = template.core.map((rx) => buildExercise(rx, phase));
+  const optionalCore =
+    template.optionalCore.length > 0
+      ? template.optionalCore.map((rx) => buildExercise({ ...rx, optional: true }, phase))
+      : undefined;
 
   return {
     id: `w${order}`,
     order,
     week,
-    title: template.titleFor(block),
+    title: template.title,
     variantLabel: template.variantLabel,
     variant: template.variant,
+    identity: template.identity,
+    preferredWeekday: preferredWeekdayForVariant(template.variant),
+    plannedDayOffset: plannedDayOffsetForOrder(order),
+    programVersion: PROGRAM_VERSION,
     focusArea: template.focusArea,
-    trainingBlock: block,
+    trainingBlock: phase.trainingBlock,
     primaryMuscleGroups: template.primaryMuscleGroups,
     length: template.length,
     estimatedDurationMinutes: template.estimatedDurationMinutes,
@@ -802,7 +856,8 @@ function buildWorkout(order: number, week: number, templateId: TemplateId): Work
     warmup: template.warmup,
     strength,
     core,
-    cardio: template.hasCardio ? makeCardio(phase, false) : undefined
+    optionalCore,
+    cardio: template.hasOptionalCardio ? makeCardio(phase) : undefined
   };
 }
 
@@ -839,12 +894,20 @@ export function getWorkoutById(workoutId: string): Workout | undefined {
   return workouts.find((w) => w.id === workoutId);
 }
 
-/** All authored workouts (ready slots only). */
 export function getAllWorkouts(): Workout[] {
   return workouts;
 }
 
-/** Catalog snapshot for migration/reporting (stable IDs currently in V2). */
+/** Mandatory strength + core (excludes optionalCore). */
+export function getMandatoryExercises(workout: Workout): Exercise[] {
+  return [...workout.strength, ...workout.core];
+}
+
+/** Catalog snapshot for reporting. */
 export function getV2CatalogEntries(): CatalogEntry[] {
+  return Object.values(EX);
+}
+
+export function getV3CatalogEntries(): CatalogEntry[] {
   return Object.values(EX);
 }

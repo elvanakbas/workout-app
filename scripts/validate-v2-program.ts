@@ -55,7 +55,13 @@ const catalog = getV2CatalogEntries();
 const registryKeys = new Set(EXERCISE_VISUALS.map((e) => e.visualAssetKey));
 const referencedKeys = new Set(
   workouts.flatMap((w) =>
-    [...w.warmup, ...w.strength, ...w.core, ...(w.cardio ? [w.cardio] : [])]
+    [
+      ...w.warmup,
+      ...w.strength,
+      ...w.core,
+      ...(w.optionalCore ?? []),
+      ...(w.cardio ? [w.cardio] : [])
+    ]
       .map((m) => m.visualAssetKey)
       .filter((k): k is string => !!k)
   )

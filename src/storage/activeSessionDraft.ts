@@ -150,7 +150,20 @@ export function normalizeActiveSessionDraft(raw: unknown, expectedWorkoutId: str
     lowEnergyMode: candidate.lowEnergyMode === true,
     cardioCompleted: candidate.cardioCompleted === true,
     entries,
-    feedback
+    feedback,
+    programVersion:
+      typeof candidate.programVersion === "string" ? candidate.programVersion : undefined,
+    optionalCoreEnabled: candidate.optionalCoreEnabled === true,
+    optionalCardioEnabled: candidate.optionalCardioEnabled === true,
+    legacyEntries: Array.isArray(candidate.legacyEntries)
+      ? candidate.legacyEntries.filter(
+          (entry): entry is ExerciseLog =>
+            !!entry &&
+            typeof entry === "object" &&
+            typeof entry.exerciseId === "string" &&
+            Array.isArray(entry.sets)
+        )
+      : undefined
   };
 }
 

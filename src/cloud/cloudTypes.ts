@@ -1,5 +1,6 @@
 import type { ActiveSessionDraft, WorkoutLog } from "../types";
 import type { NutritionDay, NutritionSettings } from "../types/nutrition";
+import type { ProgramScheduleSettings } from "../storage/programSettings";
 
 export type SyncUiStatus =
   | "local-only"
@@ -24,9 +25,7 @@ export interface CloudSyncStateV1 {
   lastSuccessfulSyncAt: string | null;
   pendingUpload: boolean;
   lastError: string | null;
-  /** True after first successful ownership resolution + sync for lastUserId. */
   ownershipResolved: boolean;
-  /** User must pick device vs cloud settings once when both differ. */
   settingsConflictPending: boolean;
 }
 
@@ -45,6 +44,8 @@ export interface WorkoutProgressPayload {
 
 export interface UserSettingsPayload {
   nutrition: NutritionSettings;
+  /** Namespaced program schedule — merge independently of nutrition. */
+  schedule?: ProgramScheduleSettings;
   updatedAt: string;
 }
 
@@ -52,7 +53,6 @@ export interface NutritionDayCloudPayload {
   dateKey: string;
   entries: NutritionDay["entries"];
   updatedAt: string;
-  /** Entry IDs deleted on this day (tombstones) to prevent resurrection. */
   deletedEntryIds?: string[];
 }
 
