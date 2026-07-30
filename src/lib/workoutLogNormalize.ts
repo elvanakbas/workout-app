@@ -1,10 +1,12 @@
 import type {
   ExerciseLog,
+  ExerciseRole,
   MeasurementType,
+  PreferredWeekday,
   SessionFeedback,
   SetLog,
+  WorkoutIdentity,
   WorkoutLog,
-  WorkoutLogCardioSnapshot,
   WorkoutLogSchemaVersion
 } from "../types";
 
@@ -40,6 +42,41 @@ function normalizeMeasurementType(value: unknown): MeasurementType | undefined {
   return undefined;
 }
 
+function normalizeRole(value: unknown): ExerciseRole | undefined {
+  if (
+    value === "primary" ||
+    value === "secondary" ||
+    value === "isolation" ||
+    value === "core" ||
+    value === "cardio"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizeIdentity(value: unknown): WorkoutIdentity | undefined {
+  if (value === "push" || value === "quad" || value === "pull" || value === "posterior") {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizeWeekday(value: unknown): PreferredWeekday | undefined {
+  if (
+    value === "monday" ||
+    value === "tuesday" ||
+    value === "wednesday" ||
+    value === "thursday" ||
+    value === "friday" ||
+    value === "saturday" ||
+    value === "sunday"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
 function normalizeEntry(raw: unknown): ExerciseLog | null {
   if (!isObject(raw)) return null;
   if (typeof raw.exerciseId !== "string" || !raw.exerciseId) return null;
@@ -67,6 +104,10 @@ function normalizeEntry(raw: unknown): ExerciseLog | null {
   if (raw.status === "completed" || raw.status === "incomplete" || raw.status === "skipped") {
     entry.status = raw.status;
   }
+  const role = normalizeRole(raw.role);
+  if (role) entry.role = role;
+  if (raw.optional === true) entry.optional = true;
+  if (raw.optional === false) entry.optional = false;
 
   return entry;
 }
@@ -85,7 +126,7 @@ function normalizeFeedback(raw: unknown): SessionFeedback | undefined {
   };
 }
 
-function normalizeCardio(raw: unknown): WorkoutLogCardioSnapshot | undefined {
+function normalizeCardio(raw: unknown): WorkoutLog["cardio"] {
   if (!isObject(raw)) return undefined;
   if (raw.measurementType !== "cardio-duration") return undefined;
   if (raw.machine !== "elliptical" && raw.machine !== "stationary_bike" && raw.machine !== "rowing") {
@@ -94,7 +135,7 @@ function normalizeCardio(raw: unknown): WorkoutLogCardioSnapshot | undefined {
   const plannedMinutes = asFiniteNumber(raw.plannedMinutes, NaN);
   if (!Number.isFinite(plannedMinutes)) return undefined;
 
-  const cardio: WorkoutLogCardioSnapshot = {
+  const cardio: NonNullable<WorkoutLog["cardio"]> = {
     measurementType: "cardio-duration",
     machine: raw.machine,
     plannedMinutes,
@@ -110,9 +151,15 @@ function normalizeCardio(raw: unknown): WorkoutLogCardioSnapshot | undefined {
   return cardio;
 }
 
+function normalizeSchemaVersion(value: unknown): WorkoutLogSchemaVersion | undefined {
+  if (value === 3 || value === 2 || value === 1) return value;
+  return undefined;
+}
+
 /**
  * Defensively normalize one history log. Returns null for unusable documents
  * without mutating storage — callers skip nulls and keep sibling logs.
+ * V3 additive fields are preserved; V1/V2 logs are never upgraded to schema 3.
  */
 export function normalizeWorkoutLog(raw: unknown): WorkoutLog | null {
   if (!isObject(raw)) return null;
@@ -127,8 +174,7 @@ export function normalizeWorkoutLog(raw: unknown): WorkoutLog | null {
 
   const entries = raw.entries.map(normalizeEntry).filter((entry): entry is ExerciseLog => entry !== null);
 
-  const schemaVersion: WorkoutLogSchemaVersion | undefined =
-    raw.schemaVersion === 2 ? 2 : raw.schemaVersion === 1 ? 1 : undefined;
+  const schemaVersion = normalizeSchemaVersion(raw.schemaVersion);
 
   const log: WorkoutLog = {
     id: raw.id,
@@ -168,6 +214,31 @@ export function normalizeWorkoutLog(raw: unknown): WorkoutLog | null {
   if (raw.historySource === "legacy-v1" || raw.historySource === "legacy-unknown") {
     log.historySource = raw.historySource;
   }
+
+  // V3 additive snapshots — only when present; never fabricated for old logs.
+  if (typeof raw.programVersion === "string" && raw.programVersion.trim()) {
+    log.programVersion = raw.programVersion;
+  }
+  const identity = normalizeIdentity(raw.workoutIdentity);
+  if (identity) log.workoutIdentity = identity;
+  const weekday = normalizeWeekday(raw.preferredWeekday);
+  if (weekday) log.preferredWeekday = weekday;
+  if (typeof raw.plannedDateKey === "string" && raw.plannedDateKey) {
+    log.plannedDateKey = raw.plannedDateKey;
+  }
+  if (typeof raw.actualDateKey === "string" && raw.actualDateKey) {
+    log.actualDateKey = raw.actualDateKey;
+  }
+  if (raw.optionalCoreSelected === true) log.optionalCoreSelected = true;
+  if (raw.optionalCoreSelected === false) log.optionalCoreSelected = false;
+  if (raw.optionalCoreCompleted === true) log.optionalCoreCompleted = true;
+  if (raw.optionalCoreCompleted === false) log.optionalCoreCompleted = false;
+  if (raw.optionalCardioSelected === true) log.optionalCardioSelected = true;
+  if (raw.optionalCardioSelected === false) log.optionalCardioSelected = false;
+  if (raw.optionalCardioCompleted === true) log.optionalCardioCompleted = true;
+  if (raw.optionalCardioCompleted === false) log.optionalCardioCompleted = false;
+  if (raw.mainWorkoutCompleted === true) log.mainWorkoutCompleted = true;
+  if (raw.mainWorkoutCompleted === false) log.mainWorkoutCompleted = false;
 
   return log;
 }

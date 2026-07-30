@@ -19,6 +19,7 @@ import { dayTotals, remainingSummary } from "../lib/nutritionMath";
 import { workoutLogLocalDateKey } from "../lib/nutritionWorkoutLink";
 import { getNutritionDay, getNutritionSettings } from "../storage/nutritionStorage";
 import type { ExerciseLog, SetLog, WorkoutLog } from "../types";
+import { IDENTITY_DISPLAY_LABEL, PREFERRED_WEEKDAY_LABEL } from "../types";
 import styles from "./HistoryDetailScreen.module.css";
 
 function formatDateTime(iso: string): string {
@@ -147,6 +148,40 @@ function DetailBody({ log, logs }: { log: WorkoutLog; logs: WorkoutLog[] }) {
             <span className={styles.chip}>{formatDuration(log.durationSeconds)}</span>
           ) : null}
           {log.lowEnergyMode ? <span className={styles.chip}>Low Energy Mode</span> : null}
+          {log.workoutIdentity ? (
+            <span className={styles.chip}>{IDENTITY_DISPLAY_LABEL[log.workoutIdentity]}</span>
+          ) : null}
+          {log.preferredWeekday ? (
+            <span className={styles.chip}>
+              Preferred {PREFERRED_WEEKDAY_LABEL[log.preferredWeekday]}
+            </span>
+          ) : null}
+          {log.plannedDateKey ? (
+            <span className={styles.chip}>Planned {log.plannedDateKey}</span>
+          ) : null}
+          {log.actualDateKey ? (
+            <span className={styles.chip}>Actual {log.actualDateKey}</span>
+          ) : null}
+          {log.optionalCoreSelected !== undefined ? (
+            <span className={styles.chip}>
+              Core add-on:{" "}
+              {log.optionalCoreCompleted
+                ? "done"
+                : log.optionalCoreSelected
+                  ? "selected"
+                  : "not added"}
+            </span>
+          ) : null}
+          {log.optionalCardioSelected !== undefined ? (
+            <span className={styles.chip}>
+              Cardio add-on:{" "}
+              {log.optionalCardioCompleted
+                ? "done"
+                : log.optionalCardioSelected
+                  ? "selected"
+                  : "not added"}
+            </span>
+          ) : null}
         </div>
       </header>
 

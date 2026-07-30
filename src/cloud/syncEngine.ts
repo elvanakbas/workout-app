@@ -8,6 +8,10 @@ import {
   saveNutritionDay
 } from "../storage/nutritionStorage";
 import {
+  getProgramScheduleSettings,
+  saveProgramScheduleSettings
+} from "../storage/programSettings";
+import {
   clearActiveSessionDraft,
   listActiveSessionDrafts,
   saveActiveSessionDraft
@@ -69,9 +73,11 @@ export function summarizeLocalData(): LocalDataSummary {
 
 function localSettingsPayload(): UserSettingsPayload {
   const state = readCloudSyncState();
+  const schedule = getProgramScheduleSettings();
   return {
     nutrition: getNutritionSettings(),
-    updatedAt: state.lastSuccessfulSyncAt ?? new Date().toISOString()
+    schedule,
+    updatedAt: state.lastSuccessfulSyncAt ?? schedule.updatedAt ?? new Date().toISOString()
   };
 }
 
@@ -123,6 +129,7 @@ async function pullCloudSnapshot(userId: string): Promise<CloudSnapshot> {
   const settings: UserSettingsPayload | null = settingsRes.data
     ? {
         nutrition: (settingsRes.data.payload as UserSettingsPayload).nutrition,
+        schedule: (settingsRes.data.payload as UserSettingsPayload).schedule,
         updatedAt:
           (settingsRes.data.payload as UserSettingsPayload).updatedAt ??
           settingsRes.data.updated_at
@@ -253,6 +260,9 @@ function applyMergedLocal(merged: {
 
   if (merged.settings) {
     saveNutritionSettings(merged.settings.nutrition);
+    if (merged.settings.schedule) {
+      saveProgramScheduleSettings(merged.settings.schedule);
+    }
   }
 
   const currentDraftIds = new Set(listActiveSessionDrafts().map((d) => d.workoutId));

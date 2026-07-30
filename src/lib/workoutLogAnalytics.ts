@@ -106,7 +106,7 @@ export function bestValidSet(entry: ExerciseLog): SetLog | undefined {
 }
 
 export function logHasRichSetDetail(log: WorkoutLog): boolean {
-  if (log.schemaVersion === 2) return true;
+  if (log.schemaVersion === 2 || log.schemaVersion === 3) return true;
   // V2-era logs often stored sets with values but no names/measurementType.
   return log.entries.some(
     (entry) =>
@@ -118,7 +118,11 @@ export function logHasRichSetDetail(log: WorkoutLog): boolean {
 }
 
 export function logHasComparableAnalytics(log: WorkoutLog): boolean {
-  return log.schemaVersion === 2 || log.entries.some((entry) => entry.measurementType === "reps-weight");
+  return (
+    log.schemaVersion === 2 ||
+    log.schemaVersion === 3 ||
+    log.entries.some((entry) => entry.measurementType === "reps-weight")
+  );
 }
 
 /**

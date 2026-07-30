@@ -3,7 +3,7 @@ import styles from "./StatusBadge.module.css";
 
 const LABELS: Record<SlotDisplayStatus, string> = {
   completed: "Completed",
-  recommendedNext: "Recommended Next",
+  recommendedNext: "Next recommended",
   available: "Available",
   comingSoon: "Coming soon"
 };

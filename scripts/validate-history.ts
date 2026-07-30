@@ -42,7 +42,7 @@ if (!lowerB || !lowerB.cardio) {
   process.exit(1);
 }
 
-const canonical = [...lowerB.strength, ...lowerB.core];
+const canonical = [...lowerB.strength, ...lowerB.core, ...(lowerB.optionalCore ?? [])];
 const entries = buildInitialEntries(canonical);
 
 const repsWeight = canonical.find((e) => e.measurementType === "reps-weight");
@@ -51,7 +51,9 @@ const durationEx = canonical.find((e) => e.measurementType === "duration");
 const unilateral = canonical.find((e) => e.unilateral || e.targetUnitLabel === "per side");
 
 if (!repsWeight || !durationEx) {
-  console.error("FAIL: Lower B should include reps-weight and duration exercises");
+  console.error(
+    "FAIL: Lower B (+ optional core) should include reps-weight and duration exercises"
+  );
   process.exit(1);
 }
 

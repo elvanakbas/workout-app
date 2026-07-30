@@ -37,7 +37,8 @@ export const KNOWN_NON_HISTORY_KEYS = [
   "workout-app:nutrition:recovery",
   "workout-app:cloud:last-user-id",
   "workout-app:cloud:sync-state:v1",
-  "workout-app:cloud:pending-queue:v1"
+  "workout-app:cloud:pending-queue:v1",
+  "workout-app:program:settings:v1"
 ] as const;
 
 export interface HistoryBackupDocument {
@@ -234,17 +235,29 @@ function coerceRawRecord(
 /** Richness score for duplicate resolution (higher wins). */
 export function logRichnessScore(log: WorkoutLog): number {
   let score = 0;
-  if (log.schemaVersion === 2) score += 1000;
+  // Schema 2 and 3 are both rich snapshots; schema 3 must never score poorer
+  // than schema 2 merely due to version handling.
+  if (log.schemaVersion === 3) score += 1100;
+  else if (log.schemaVersion === 2) score += 1000;
   if (log.feedback) score += 50;
   if (log.cardio) score += 40;
   if (typeof log.durationSeconds === "number") score += 20;
   if (log.variantLabel || log.variant || log.length) score += 30;
   if (log.lowEnergyMode) score += 5;
+  if (log.programVersion) score += 15;
+  if (log.workoutIdentity) score += 10;
+  if (log.plannedDateKey) score += 8;
+  if (log.actualDateKey) score += 8;
+  if (log.optionalCoreSelected !== undefined) score += 4;
+  if (log.optionalCardioSelected !== undefined) score += 4;
+  if (log.mainWorkoutCompleted !== undefined) score += 4;
 
   for (const entry of log.entries) {
     score += 10;
     if (entry.name) score += 15;
     if (entry.measurementType) score += 10;
+    if (entry.role) score += 5;
+    if (entry.optional !== undefined) score += 2;
     for (const set of entry.sets) {
       if (set.reps > 0 || set.weight > 0 || (set.durationSeconds ?? 0) > 0) score += 3;
     }
@@ -292,8 +305,36 @@ export function mergeCompatibleFields(winner: WorkoutLog, other: WorkoutLog): Wo
   if (!merged.variant && other.variant) merged.variant = other.variant;
   if (!merged.focusArea && other.focusArea) merged.focusArea = other.focusArea;
   if (!merged.length && other.length) merged.length = other.length;
-  if (!merged.schemaVersion && other.schemaVersion) merged.schemaVersion = other.schemaVersion;
+  // Prefer higher schema when both present (3 > 2 > 1); never downgrade.
+  if (
+    other.schemaVersion &&
+    (!merged.schemaVersion || other.schemaVersion > merged.schemaVersion)
+  ) {
+    merged.schemaVersion = other.schemaVersion;
+  }
   if (!merged.historySource && other.historySource) merged.historySource = other.historySource;
+  if (!merged.programVersion && other.programVersion) merged.programVersion = other.programVersion;
+  if (!merged.workoutIdentity && other.workoutIdentity) merged.workoutIdentity = other.workoutIdentity;
+  if (!merged.preferredWeekday && other.preferredWeekday) {
+    merged.preferredWeekday = other.preferredWeekday;
+  }
+  if (!merged.plannedDateKey && other.plannedDateKey) merged.plannedDateKey = other.plannedDateKey;
+  if (!merged.actualDateKey && other.actualDateKey) merged.actualDateKey = other.actualDateKey;
+  if (merged.optionalCoreSelected === undefined && other.optionalCoreSelected !== undefined) {
+    merged.optionalCoreSelected = other.optionalCoreSelected;
+  }
+  if (merged.optionalCoreCompleted === undefined && other.optionalCoreCompleted !== undefined) {
+    merged.optionalCoreCompleted = other.optionalCoreCompleted;
+  }
+  if (merged.optionalCardioSelected === undefined && other.optionalCardioSelected !== undefined) {
+    merged.optionalCardioSelected = other.optionalCardioSelected;
+  }
+  if (merged.optionalCardioCompleted === undefined && other.optionalCardioCompleted !== undefined) {
+    merged.optionalCardioCompleted = other.optionalCardioCompleted;
+  }
+  if (merged.mainWorkoutCompleted === undefined && other.mainWorkoutCompleted !== undefined) {
+    merged.mainWorkoutCompleted = other.mainWorkoutCompleted;
+  }
 
   // Prefer richer entries when winner has empty shells and other has names/values.
   if (logRichnessScore(other) > logRichnessScore(winner) * 0.9 && other.entries.length >= winner.entries.length) {

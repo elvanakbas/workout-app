@@ -150,7 +150,20 @@ export function normalizeActiveSessionDraft(raw: unknown, expectedWorkoutId: str
     lowEnergyMode: candidate.lowEnergyMode === true,
     cardioCompleted: candidate.cardioCompleted === true,
     entries,
-    feedback
+    feedback,
+    programVersion:
+      typeof candidate.programVersion === "string" ? candidate.programVersion : undefined,
+    optionalCoreEnabled: candidate.optionalCoreEnabled === true,
+    optionalCardioEnabled: candidate.optionalCardioEnabled === true,
+    legacyEntries: Array.isArray(candidate.legacyEntries)
+      ? candidate.legacyEntries.filter(
+          (entry): entry is ExerciseLog =>
+            !!entry &&
+            typeof entry === "object" &&
+            typeof entry.exerciseId === "string" &&
+            Array.isArray(entry.sets)
+        )
+      : undefined
   };
 }
 
@@ -167,6 +180,15 @@ export function getActiveSessionDraft(workoutId: string): ActiveSessionDraft | n
     writeDraftMap(map);
   }
   return normalized;
+}
+
+/** Compare draft payloads ignoring updatedAt (for no-op autosave / sync stability). */
+export function draftContentEquals(a: ActiveSessionDraft, b: ActiveSessionDraft): boolean {
+  const strip = (d: ActiveSessionDraft) => {
+    const { updatedAt: _u, ...rest } = d;
+    return rest;
+  };
+  return JSON.stringify(strip(a)) === JSON.stringify(strip(b));
 }
 
 export function saveActiveSessionDraft(
