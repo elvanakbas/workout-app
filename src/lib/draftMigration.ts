@@ -78,7 +78,11 @@ export function getMigratedActiveSessionDraft(workout: Workout): ActiveSessionDr
   const migrated = migrateDraftToCurrentProgram(raw, workout);
   if (draftMigrationNeedsPersist(raw, migrated)) {
     // Bump updatedAt on material V3 migration only (do not preserve old timestamp).
-    saveActiveSessionDraft(migrated);
+    saveActiveSessionDraft({
+      ...migrated,
+      updatedAt: new Date().toISOString()
+    });
+    return getActiveSessionDraft(workout.id) ?? migrated;
   }
   return migrated;
 }

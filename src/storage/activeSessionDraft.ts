@@ -182,6 +182,15 @@ export function getActiveSessionDraft(workoutId: string): ActiveSessionDraft | n
   return normalized;
 }
 
+/** Compare draft payloads ignoring updatedAt (for no-op autosave / sync stability). */
+export function draftContentEquals(a: ActiveSessionDraft, b: ActiveSessionDraft): boolean {
+  const strip = (d: ActiveSessionDraft) => {
+    const { updatedAt: _u, ...rest } = d;
+    return rest;
+  };
+  return JSON.stringify(strip(a)) === JSON.stringify(strip(b));
+}
+
 export function saveActiveSessionDraft(
   draft: ActiveSessionDraft,
   options?: { preserveUpdatedAt?: boolean }

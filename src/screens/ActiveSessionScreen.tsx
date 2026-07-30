@@ -17,6 +17,8 @@ import {
   ACTIVE_DRAFT_SCHEMA_VERSION,
   clearActiveSessionDraft,
   DEFAULT_FEEDBACK,
+  draftContentEquals,
+  getActiveSessionDraft,
   saveActiveSessionDraft
 } from "../storage/activeSessionDraft";
 import { getProgramScheduleSettings } from "../storage/programSettings";
@@ -131,7 +133,7 @@ export default function ActiveSessionScreen() {
 
   useEffect(() => {
     if (!workout || !hydrated || completingWorkout) return;
-    saveActiveSessionDraft({
+    const next = {
       version: ACTIVE_DRAFT_SCHEMA_VERSION,
       workoutId: workout.id,
       updatedAt: new Date().toISOString(),
@@ -144,7 +146,11 @@ export default function ActiveSessionScreen() {
       optionalCoreEnabled,
       optionalCardioEnabled,
       legacyEntries: legacyEntries.length > 0 ? legacyEntries : undefined
-    });
+    } as const;
+    const existing = getActiveSessionDraft(workout.id);
+    // Avoid bumping updatedAt on hydrate/reload when nothing material changed (LWW-safe).
+    if (existing && draftContentEquals(existing, next)) return;
+    saveActiveSessionDraft(next);
   }, [
     workout,
     hydrated,
