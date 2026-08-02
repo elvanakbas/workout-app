@@ -498,6 +498,14 @@ const PHASE_BY_WEEK: Record<number, PhaseConfig> = {
   }
 };
 
+/**
+ * One template slot. `entry` is the Block 1 movement; when `blockTwoEntry` is set
+ * the slot rotates to a different movement for Block 2 (weeks 6–8).
+ *
+ * Set counts never differ between blocks — only the movement does. That keeps a
+ * single weekly volume table valid for the whole program and leaves double
+ * progression on the Primary Lifts untouched (Primary slots never rotate).
+ */
 interface Prescription {
   entry: CatalogEntry;
   sets: number;
@@ -507,6 +515,38 @@ interface Prescription {
   role?: ExerciseRole;
   primaryMuscles?: MuscleGroup[];
   secondaryMuscles?: MuscleGroup[];
+  /** Block 2 (weeks 6–8) rotation for this slot. Omit to keep the same movement. */
+  blockTwoEntry?: CatalogEntry;
+  blockTwoReps?: string;
+  blockTwoRole?: ExerciseRole;
+  blockTwoRestSeconds?: number;
+}
+
+interface ResolvedSlot {
+  entry: CatalogEntry;
+  sets: number;
+  reps: string;
+  role: ExerciseRole;
+  restSeconds?: number;
+  optional?: boolean;
+  primaryMuscles?: MuscleGroup[];
+  secondaryMuscles?: MuscleGroup[];
+}
+
+/** Picks the Block 1 or Block 2 movement for a slot. Set count is block-independent. */
+function resolveForBlock(rx: Prescription, trainingBlock: 1 | 2): ResolvedSlot {
+  const rotated = trainingBlock === 2 && rx.blockTwoEntry != null;
+  const entry = rotated ? rx.blockTwoEntry! : rx.entry;
+  return {
+    entry,
+    sets: rx.sets,
+    reps: (rotated ? rx.blockTwoReps : undefined) ?? rx.reps,
+    role: (rotated ? rx.blockTwoRole : undefined) ?? rx.role ?? entry.role,
+    restSeconds: (rotated ? rx.blockTwoRestSeconds : undefined) ?? rx.restSeconds,
+    optional: rx.optional,
+    primaryMuscles: rx.primaryMuscles,
+    secondaryMuscles: rx.secondaryMuscles
+  };
 }
 
 /** ~35–45% weekly set reduction on deload while keeping Primary Lift present.
@@ -518,35 +558,29 @@ function deloadSets(sets: number, role: ExerciseRole): number {
   return Math.max(1, Math.round(sets * factor));
 }
 
-function applyDeload(rx: Prescription, isDeload: boolean): Prescription {
-  if (!isDeload) return rx;
-  const role = rx.role ?? rx.entry.role;
-  return { ...rx, sets: deloadSets(rx.sets, role) };
-}
-
 function buildExercise(rx: Prescription, phase: PhaseConfig): Exercise {
-  const adjusted = applyDeload(rx, phase.isDeload);
-  const role = adjusted.role ?? adjusted.entry.role;
+  // Week 5 is trainingBlock 1, so the deload always runs on familiar Block 1 movements.
+  const slot = resolveForBlock(rx, phase.trainingBlock);
+  const sets = phase.isDeload ? deloadSets(slot.sets, slot.role) : slot.sets;
   const rest =
-    adjusted.restSeconds ??
-    (role === "core" ? phase.coreRestSeconds : phase.strengthRestSeconds);
+    slot.restSeconds ?? (slot.role === "core" ? phase.coreRestSeconds : phase.strengthRestSeconds);
   return {
-    id: adjusted.entry.id,
-    name: adjusted.entry.name,
-    targetSets: adjusted.sets,
-    targetReps: adjusted.reps,
-    measurementType: adjusted.entry.measurementType,
-    role,
-    equipmentCategory: adjusted.entry.equipmentCategory,
-    primaryMuscles: adjusted.primaryMuscles ?? adjusted.entry.primaryMuscles,
-    secondaryMuscles: adjusted.secondaryMuscles ?? adjusted.entry.secondaryMuscles,
-    unilateral: adjusted.entry.unilateral,
-    targetUnitLabel: adjusted.entry.targetUnitLabel,
+    id: slot.entry.id,
+    name: slot.entry.name,
+    targetSets: sets,
+    targetReps: slot.reps,
+    measurementType: slot.entry.measurementType,
+    role: slot.role,
+    equipmentCategory: slot.entry.equipmentCategory,
+    primaryMuscles: slot.primaryMuscles ?? slot.entry.primaryMuscles,
+    secondaryMuscles: slot.secondaryMuscles ?? slot.entry.secondaryMuscles,
+    unilateral: slot.entry.unilateral,
+    targetUnitLabel: slot.entry.targetUnitLabel,
     restSeconds: rest,
-    optional: adjusted.optional,
-    notes: adjusted.entry.notes,
-    safetyNote: adjusted.entry.safetyNote,
-    visualAssetKey: adjusted.entry.visualAssetKey
+    optional: slot.optional,
+    notes: slot.entry.notes,
+    safetyNote: slot.entry.safetyNote,
+    visualAssetKey: slot.entry.visualAssetKey
   };
 }
 
@@ -615,12 +649,20 @@ const LOWER_WARMUP: WarmupItem[] = [
 ];
 
 /**
- * Final V3 templates (same movements all weeks).
+ * Final V3 templates with two-block accessory rotation.
  *
- * Mandatory volume (normal week, primaryMuscles only):
- * Chest 7 (A4+B3) — documented −1 vs target 8 for Off-Day duration budget;
- *   second chest exposure remains 3 hard incline sets.
- * Back 12, Shoulders 8, Biceps 5, Triceps 5, Quads 10, Ham 8, Glutes 8, Calves 6, Core 4.
+ * Block 1 = weeks 1–4 (+ week 5 deload), Block 2 = weeks 6–8. Primary Lifts and
+ * set counts are identical in both blocks; eight accessory slots rotate to a
+ * different movement in Block 2. Rationale: Baz-Valle et al. 2019 (PLOS One)
+ * found random per-session variation matched fixed selection for growth but
+ * raised training motivation, and advised limiting variety on compound lifts
+ * while varying isolation work; Kassiano et al. 2022 (JSCR) concluded that
+ * systematic variation helps whereas excessive random variation can compromise
+ * gains. See docs/V3_BLOCK_ROTATION.md.
+ *
+ * Mandatory volume (normal week, primaryMuscles only) — same in both blocks:
+ * Chest 9, Back 13, Shoulders 9, Biceps 6, Triceps 6,
+ * Quads 10, Hamstrings 8, Glutes 7, Calves 8, Core 4. Weekly total 80 sets.
  */
 const TEMPLATES: Record<TemplateId, TemplateDef> = {
   upperA: {
@@ -630,24 +672,49 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
     preferredWeekday: "tuesday",
     focusArea: "upper",
     length: "short",
-    estimatedDurationMinutes: { min: 40, max: 50 },
+    estimatedDurationMinutes: { min: 45, max: 55 },
     primaryMuscleGroups: ["chest", "shoulders", "triceps"],
     title: "Upper A — Push",
     focus: "Push emphasis · chest, shoulders, triceps",
     warmup: UPPER_WARMUP,
+    // 6 exercises / 18 sets. Chest 6, Shoulders 6, Triceps 3, Back 3.
     strength: [
       { entry: EX.chestPressMachine, sets: 4, reps: "8-12", role: "primary", restSeconds: 90 },
-      { entry: EX.seatedDbShoulderPress, sets: 3, reps: "8-12", role: "secondary", restSeconds: 90 },
-      { entry: EX.ropeTricepsPushdown, sets: 3, reps: "10-12", role: "isolation", restSeconds: 60 },
-      { entry: EX.dbLateralRaise, sets: 2, reps: "12-15", role: "isolation", restSeconds: 60 },
+      {
+        entry: EX.seatedDbShoulderPress,
+        blockTwoEntry: EX.machineShoulderPress,
+        sets: 3,
+        reps: "8-12",
+        role: "secondary",
+        restSeconds: 90
+      },
+      {
+        entry: EX.cableFly,
+        blockTwoEntry: EX.flatDbPress,
+        sets: 2,
+        reps: "12-15",
+        blockTwoReps: "8-12",
+        role: "isolation",
+        blockTwoRole: "secondary",
+        restSeconds: 60,
+        blockTwoRestSeconds: 90
+      },
+      {
+        entry: EX.ropeTricepsPushdown,
+        blockTwoEntry: EX.cableTricepsPushdown,
+        sets: 3,
+        reps: "10-12",
+        role: "isolation",
+        restSeconds: 60
+      },
+      { entry: EX.dbLateralRaise, sets: 3, reps: "12-15", role: "isolation", restSeconds: 60 },
       {
         entry: EX.chestSupportedDbRow,
-        sets: 2,
+        sets: 3,
         reps: "10-12",
         role: "secondary",
         restSeconds: 75
-      },
-      { entry: EX.dbHammerCurl, sets: 2, reps: "10-12", role: "isolation", restSeconds: 60 }
+      }
     ],
     core: [],
     optionalCore: [],
@@ -665,21 +732,33 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
     title: "Lower A — Quad",
     focus: "Quad emphasis · knees, calves, core",
     warmup: LOWER_WARMUP,
+    // 5 exercises / 15 sets. Quads 7, Calves 4, Hamstrings 2, Core 2.
     strength: [
       { entry: EX.legPress, sets: 4, reps: "10-12", role: "primary", restSeconds: 90 },
-      { entry: EX.legExtension, sets: 4, reps: "12-15", role: "secondary", restSeconds: 60 },
-      { entry: EX.seatedCalfRaise, sets: 3, reps: "12-15", role: "isolation", restSeconds: 45 },
+      { entry: EX.legExtension, sets: 3, reps: "12-15", role: "secondary", restSeconds: 60 },
+      { entry: EX.seatedCalfRaise, sets: 4, reps: "12-15", role: "isolation", restSeconds: 45 },
       {
         entry: EX.dbRomanianDeadlift,
+        blockTwoEntry: EX.seatedLegCurl,
         sets: 2,
         reps: "8-12",
+        blockTwoReps: "10-12",
         role: "secondary",
-        primaryMuscles: ["hamstrings"],
-        secondaryMuscles: ["glutes"],
-        restSeconds: 90
+        restSeconds: 90,
+        blockTwoRestSeconds: 60
       }
     ],
-    core: [{ entry: EX.deadBug, sets: 2, reps: "8-12 per side", role: "core", restSeconds: 45 }],
+    core: [
+      {
+        entry: EX.deadBug,
+        blockTwoEntry: EX.cableCrunch,
+        sets: 2,
+        reps: "8-12 per side",
+        blockTwoReps: "10-15",
+        role: "core",
+        restSeconds: 45
+      }
+    ],
     optionalCore: [],
     hasOptionalCardio: false
   },
@@ -690,7 +769,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
     preferredWeekday: "friday",
     focusArea: "upper",
     length: "long",
-    estimatedDurationMinutes: { min: 70, max: 90 },
+    estimatedDurationMinutes: { min: 75, max: 95 },
     primaryMuscleGroups: ["back", "shoulders", "biceps"],
     title: "Upper B — Pull",
     focus: "Pull emphasis · lats, mid-back, rear delts, biceps",
@@ -705,12 +784,11 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
         visualAssetKey: "band-pull-apart"
       })
     ],
+    // 8 exercises / 25 sets. Back 10, Chest 3, Shoulders 3, Biceps 6, Triceps 3.
     strength: [
       { entry: EX.chestSupportedRow, sets: 4, reps: "8-10", role: "primary", restSeconds: 90 },
       { entry: EX.latPulldown, sets: 3, reps: "8-12", role: "secondary", restSeconds: 90 },
       { entry: EX.seatedCableRow, sets: 3, reps: "10-12", role: "secondary", restSeconds: 75 },
-      { entry: EX.reversePecDeck, sets: 3, reps: "12-15", role: "isolation", restSeconds: 60 },
-      { entry: EX.inclineDbCurl, sets: 3, reps: "10-12", role: "isolation", restSeconds: 60 },
       {
         entry: EX.inclineDbPress,
         sets: 3,
@@ -719,8 +797,26 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
         restSeconds: 90
       },
       {
+        entry: EX.reversePecDeck,
+        blockTwoEntry: EX.cableFacePull,
+        sets: 3,
+        reps: "12-15",
+        role: "isolation",
+        restSeconds: 60
+      },
+      {
+        entry: EX.inclineDbCurl,
+        blockTwoEntry: EX.alternatingDbCurl,
+        sets: 3,
+        reps: "10-12",
+        blockTwoReps: "10-12 per side",
+        role: "isolation",
+        restSeconds: 60
+      },
+      { entry: EX.dbHammerCurl, sets: 3, reps: "10-12", role: "isolation", restSeconds: 60 },
+      {
         entry: EX.overheadCableTriceps,
-        sets: 2,
+        sets: 3,
         reps: "10-12",
         role: "isolation",
         restSeconds: 60
@@ -767,6 +863,7 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
         visualAssetKey: "cat-cow"
       })
     ],
+    // 7 exercises / 22 sets. Glutes 7, Hamstrings 6, Quads 3, Calves 4, Core 2.
     strength: [
       { entry: EX.hipThrust, sets: 4, reps: "8-12", role: "primary", restSeconds: 90 },
       {
@@ -774,22 +871,22 @@ const TEMPLATES: Record<TemplateId, TemplateDef> = {
         sets: 3,
         reps: "8-10",
         role: "secondary",
-        primaryMuscles: ["hamstrings"],
-        secondaryMuscles: ["glutes"],
         restSeconds: 90
       },
       { entry: EX.seatedLegCurl, sets: 3, reps: "10-12", role: "secondary", restSeconds: 60 },
       {
         entry: EX.dbBulgarianSplitSquat,
-        sets: 2,
+        blockTwoEntry: EX.hackSquat,
+        sets: 3,
         reps: "8-10 per side",
+        blockTwoReps: "10-12",
         role: "secondary",
-        primaryMuscles: ["quadriceps"],
-        secondaryMuscles: ["glutes"],
-        restSeconds: 75
+        blockTwoRole: "secondary",
+        restSeconds: 75,
+        blockTwoRestSeconds: 90
       },
-      { entry: EX.hipAbduction, sets: 4, reps: "12-15", role: "isolation", restSeconds: 45 },
-      { entry: EX.seatedCalfRaise, sets: 3, reps: "12-15", role: "isolation", restSeconds: 45 }
+      { entry: EX.hipAbduction, sets: 3, reps: "12-15", role: "isolation", restSeconds: 45 },
+      { entry: EX.seatedCalfRaise, sets: 4, reps: "12-15", role: "isolation", restSeconds: 45 }
     ],
     core: [
       {

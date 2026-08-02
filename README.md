@@ -7,13 +7,18 @@ same data across phone and PC without a custom backend.
 
 ## Status: v0.1
 
-All **32 workouts** of the real 8-week program are authored (4 workouts per
-week: 2 short "Workday" sessions of ~35-45 min and 2 longer "Off Day"
-sessions of ~70-90 min). Exercises favor supported machines, cable work,
-leg press/leg curl, hip thrust/glute bridge, and low-impact cardio
-(elliptical, stationary bike, or rowing only), with concise safety notes on
-movements that are lower-back, knee, or shoulder-sensitive. Weight is always
-recorded in kilograms.
+All **32 workouts** of the real 8-week program are authored — 4 per week on an
+Upper/Lower split: two shorter workday sessions (Upper A — Push ~45-55 min,
+Lower A — Quad ~40-55 min) and two longer off-day sessions (Upper B — Pull and
+Lower B — Posterior, ~75-95 min each). Weeks 1-4 run **Block 1** movements,
+week 5 is a deload, and weeks 6-8 rotate eight accessory slots to **Block 2**
+movements while the four Primary Lifts stay fixed for the whole cycle
+(see [docs/V3_BLOCK_ROTATION.md](docs/V3_BLOCK_ROTATION.md)).
+
+Exercises favor supported machines, cable work, leg press/leg curl,
+hip thrust/glute bridge, and low-impact cardio (elliptical or stationary bike),
+with concise safety notes on movements that are lower-back, knee, or
+shoulder-sensitive. Weight is always recorded in kilograms.
 
 ## Optional cloud sync (Supabase)
 

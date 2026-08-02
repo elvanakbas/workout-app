@@ -132,10 +132,12 @@ const la = mandatoryStats(lowerA);
 const ub = mandatoryStats(upperB);
 const lb = mandatoryStats(lowerB);
 
-assert(ua.count === 6 && ua.sets >= 15 && ua.sets <= 16, `9. Upper A budget ${ua.count}/${ua.sets}`);
+assert(ua.count === 6 && ua.sets >= 17 && ua.sets <= 18, `9. Upper A budget ${ua.count}/${ua.sets}`);
 assert(la.count >= 5 && la.count <= 6 && la.sets >= 14 && la.sets <= 16, `9b. Lower A ${la.count}/${la.sets}`);
-assert(ub.count >= 7 && ub.count <= 8 && ub.sets <= 21, `10. Upper B ${ub.count}/${ub.sets}`);
-assert(lb.count === 7 && lb.sets <= 21, `10b. Lower B ${lb.count}/${lb.sets}`);
+assert(ub.count >= 7 && ub.count <= 8 && ub.sets <= 25, `10. Upper B ${ub.count}/${ub.sets}`);
+assert(lb.count === 7 && lb.sets <= 22, `10b. Lower B ${lb.count}/${lb.sets}`);
+// Workday sessions must stay materially shorter than off-day sessions.
+assert(ua.sets < ub.sets && la.sets < lb.sets, `10c. workday budget under off-day budget`);
 
 assert(
   upperA.estimatedDurationMinutes.min >= 40 &&
@@ -156,6 +158,104 @@ const week1 = volume.find((v) => v.week === 1)!;
 assert(week1 && week1.misses.length === 0, "12. week 1 mandatory volume hits targets");
 const opt = countOptionalWeeklySets(byWeek(1));
 assert(opt.core > 0, "13. optional core volume reported separately");
+
+// --- Two-block accessory rotation (weeks 1-4/5 = Block 1, weeks 6-8 = Block 2) ---
+
+assert(
+  volume.filter((v) => !v.isDeload).every((v) => v.misses.length === 0),
+  "12b. every non-deload week hits weekly volume targets"
+);
+
+const muscles = Object.keys(WEEKLY_MUSCLE_TARGETS) as MuscleGroup[];
+const block1Sets = countDirectWeeklySets(byWeek(1));
+const block2Sets = countDirectWeeklySets(byWeek(6));
+assert(
+  muscles.every((m) => block1Sets[m] === block2Sets[m]),
+  `12c. Block 1 and Block 2 weekly volume identical (${muscles
+    .filter((m) => block1Sets[m] !== block2Sets[m])
+    .join(", ") || "all match"})`
+);
+
+assert(
+  byWeek(1).every((w) => w.trainingBlock === 1) && byWeek(6).every((w) => w.trainingBlock === 2),
+  "12d. week 1 is Block 1 and week 6 is Block 2"
+);
+assert(
+  byWeek(5).every((w) => w.trainingBlock === 1),
+  "12e. deload week 5 stays on Block 1 movements"
+);
+
+function slotIds(w: Workout): string[] {
+  return getMandatoryExercises(w).map((e) => e.id);
+}
+function primaryId(w: Workout): string | undefined {
+  return getMandatoryExercises(w).find((e) => e.role === "primary")?.id;
+}
+
+let rotatedSlots = 0;
+for (let slot = 0; slot < 4; slot++) {
+  const b1 = byWeek(1)[slot];
+  const b2 = byWeek(6)[slot];
+  assert(b1.identity === b2.identity, `12f. slot ${slot} identity stable across blocks`);
+  assert(
+    primaryId(b1) != null && primaryId(b1) === primaryId(b2),
+    `12g. Primary Lift never rotates (${b1.identity}: ${primaryId(b1)} vs ${primaryId(b2)})`
+  );
+  const ids1 = slotIds(b1);
+  const ids2 = slotIds(b2);
+  assert(
+    ids1.length === ids2.length,
+    `12h. ${b1.identity} exercise count identical across blocks (${ids1.length}/${ids2.length})`
+  );
+  const sets1 = getMandatoryExercises(b1).map((e) => e.targetSets);
+  const sets2 = getMandatoryExercises(b2).map((e) => e.targetSets);
+  assert(
+    sets1.length === sets2.length && sets1.every((n, i) => n === sets2[i]),
+    `12i. ${b1.identity} per-slot set counts identical across blocks`
+  );
+  rotatedSlots += ids1.filter((id, i) => id !== ids2[i]).length;
+}
+assert(rotatedSlots >= 6, `12j. Block 2 actually rotates accessories (${rotatedSlots} slots differ)`);
+
+// A block change must never silently drop logged work from an open draft.
+const upperAB1 = byWeek(1)[0];
+const upperAB2 = byWeek(6)[0];
+const rotatedAway = slotIds(upperAB1).filter((id) => !slotIds(upperAB2).includes(id));
+assert(rotatedAway.length > 0, "12k. Upper A has at least one rotated-away exercise to test");
+const draftBeforeRotation: ActiveSessionDraft = {
+  version: ACTIVE_DRAFT_SCHEMA_VERSION,
+  workoutId: upperAB2.id,
+  updatedAt: "2026-08-01T10:00:00.000Z",
+  lowEnergyMode: false,
+  cardioCompleted: false,
+  entries: slotIds(upperAB1).map((id) => ({
+    exerciseId: id,
+    sets: [{ reps: 10, weight: 40 }],
+    completed: true
+  })),
+  feedback: {}
+};
+const migratedAcrossBlocks = migrateDraftToCurrentProgram(draftBeforeRotation, upperAB2);
+const preserved = (migratedAcrossBlocks.legacyEntries ?? []).map((e) => e.exerciseId);
+assert(
+  rotatedAway.every((id) => preserved.includes(id)),
+  "12l. rotated-away draft entries are preserved as legacy, not deleted"
+);
+assert(
+  (migratedAcrossBlocks.legacyEntries ?? []).every((e) => e.sets[0]?.weight === 40),
+  "12m. preserved legacy draft values keep their reps/kg"
+);
+assert(
+  slotIds(upperAB2).every((id) =>
+    migratedAcrossBlocks.entries.some((e) => e.exerciseId === id)
+  ),
+  "12n. Block 2 movements are initialized in the migrated draft"
+);
+assert(
+  JSON.stringify(migrateDraftToCurrentProgram(migratedAcrossBlocks, upperAB2)) ===
+    JSON.stringify(migratedAcrossBlocks),
+  "12o. cross-block draft migration is idempotent"
+);
 
 const week5 = byWeek(5);
 const w5sets = week5.reduce((n, w) => n + mandatoryStats(w).sets, 0);
