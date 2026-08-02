@@ -7,6 +7,10 @@
 
 .main {
   flex: 1;
+  /* min-height: 0 lets this flex child actually shrink so its own scrollbar
+     engages instead of pushing the nav out of view. */
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: var(--space-4);
 }

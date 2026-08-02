@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { getVisualAsset } from "../data/exerciseVisuals";
 import styles from "./ExerciseVisual.module.css";
 
@@ -20,12 +19,19 @@ interface ExerciseVisualProps {
   /** `Exercise.visualAssetKey` / `WarmupItem.visualAssetKey` / `CardioBlock.visualAssetKey`. */
   visualAssetKey?: string;
   /**
-   * "detail" renders inline, with a compact "Visual coming soon" placeholder
-   * while the real asset is still `"planned"`. "session" is collapsible and
-   * renders nothing at all until a real asset is `"ready"`, keeping the fast
-   * workout-logging flow uncluttered for movements that don't have one yet.
+   * "detail" renders full width, with a compact "Visual coming soon" placeholder
+   * while the real asset is still `"planned"`.
+   * "thumb" renders a small square crop for scannable lists — a full-width image
+   * per row turns a 6-exercise workout into an unreadable wall.
+   * "session" renders the focused movement inline at a readable size and never
+   * renders anything for a movement without a ready asset.
    */
-  variant?: "detail" | "session";
+  variant?: "detail" | "session" | "thumb";
+  /**
+   * Skips lazy loading. Set on the one visual the user is looking at right now
+   * (the focused exercise in a session) so it is never blank on arrival.
+   */
+  eager?: boolean;
 }
 
 /**
@@ -34,37 +40,43 @@ interface ExerciseVisualProps {
  * fully usable without this component ever showing a real image - it never
  * renders a broken `<img>`, and completing a workout never depends on it.
  */
-export default function ExerciseVisual({ visualAssetKey, variant = "detail" }: ExerciseVisualProps) {
-  const [expanded, setExpanded] = useState(false);
+export default function ExerciseVisual({
+  visualAssetKey,
+  variant = "detail",
+  eager = false
+}: ExerciseVisualProps) {
   const asset = visualAssetKey ? getVisualAsset(visualAssetKey) : undefined;
   const isReady = !!asset && asset.status === "ready" && !!asset.assetPath;
 
   if (!asset) return null;
 
+  if (variant === "thumb") {
+    if (!isReady) return <div className={styles.thumbPlaceholder} aria-hidden="true" />;
+    return (
+      <img
+        className={styles.thumbImage}
+        src={resolveAssetPath(asset.assetPath as string)}
+        alt=""
+        width={800}
+        height={600}
+        loading="lazy"
+        decoding="async"
+      />
+    );
+  }
+
   if (variant === "session") {
     if (!isReady) return null;
     return (
-      <div className={styles.sessionWrap}>
-        <button
-          type="button"
-          className={styles.toggle}
-          aria-expanded={expanded}
-          aria-label={`${expanded ? "Hide" : "Show"} visual for ${asset.displayName}`}
-          onClick={() => setExpanded((prev) => !prev)}
-        >
-          {expanded ? "Hide visual" : "Show visual"}
-        </button>
-        {expanded ? (
-          <img
-            className={styles.sessionImage}
-            src={resolveAssetPath(asset.assetPath as string)}
-            alt={asset.altText}
-            width={800}
-            height={600}
-            loading="lazy"
-          />
-        ) : null}
-      </div>
+      <img
+        className={styles.sessionImage}
+        src={resolveAssetPath(asset.assetPath as string)}
+        alt={asset.altText}
+        width={800}
+        height={600}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+      />
     );
   }
 
@@ -83,7 +95,8 @@ export default function ExerciseVisual({ visualAssetKey, variant = "detail" }: E
       alt={asset.altText}
       width={800}
       height={600}
-      loading="lazy"
+      loading={eager ? "eager" : "lazy"}
+      decoding="async"
     />
   );
 }

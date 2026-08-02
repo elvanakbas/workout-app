@@ -87,6 +87,82 @@
   font-weight: 700;
 }
 
+.meters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.meterHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.meterLabel {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.meterValue {
+  font-size: 18px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.meterUnit {
+  margin-left: var(--space-1);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.meterTrack {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+.meterFill,
+.meterFillOver {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.meterFill {
+  background: var(--color-accent);
+}
+
+.meterFillOver {
+  background: #ffb347;
+}
+
+.meterNote,
+.meterNoteOver {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.meterNote {
+  color: var(--color-text-muted);
+}
+
+.meterNoteOver {
+  color: #ffb347;
+}
+
 .summaryList {
   display: flex;
   flex-direction: column;

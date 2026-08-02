@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getMandatoryExercises, getWorkoutById } from "../data/program";
 import { getLastWeightForExercise } from "../lib/history";
@@ -26,6 +26,8 @@ import { useAppData } from "../state/AppDataContext";
 import { useCloudAuth } from "../cloud/CloudAuthContext";
 import { syncAfterWorkoutComplete } from "../cloud/syncEngine";
 import ExerciseVisual from "../components/ExerciseVisual";
+import NumberStepper from "../components/NumberStepper";
+import RestTimer from "../components/RestTimer";
 import type {
   EnergyLevel,
   Exercise,
@@ -38,6 +40,9 @@ import styles from "./ActiveSessionScreen.module.css";
 
 const LOW_ENERGY_MAX_SETS = 2;
 const ENERGY_OPTIONS: EnergyLevel[] = ["low", "normal", "high"];
+const DEFAULT_REST_SECONDS = 60;
+const WEIGHT_STEP_KG = 2.5;
+const DURATION_STEP_SECONDS = 5;
 
 /** LEM: hide optionals; cap non-primary to 2 sets; never reduce Primary Lift. */
 function applyLowEnergy(exercises: Exercise[], lowEnergyMode: boolean): Exercise[] {
@@ -58,6 +63,15 @@ function unilateralLabel(exercise: Exercise): string | null {
   return label;
 }
 
+function setHasValues(set: SetLog): boolean {
+  return set.reps > 0 || set.weight > 0 || (set.durationSeconds ?? 0) > 0;
+}
+
+/** Keeps pager chips readable without wrapping the strip. */
+function shortName(name: string): string {
+  return name.length <= 18 ? name : `${name.slice(0, 17)}…`;
+}
+
 export default function ActiveSessionScreen() {
   const { workoutId } = useParams<{ workoutId: string }>();
   const navigate = useNavigate();
@@ -76,6 +90,18 @@ export default function ActiveSessionScreen() {
   const [completingWorkout, setCompletingWorkout] = useState(false);
   const [legacyEntries, setLegacyEntries] = useState<ExerciseLog[]>([]);
   const completionGuardRef = useRef(createCompletionGuard());
+
+  /**
+   * View-only state below this line. None of it is written to the draft, so
+   * focusing an exercise or running a rest timer can never bump `updatedAt`
+   * or race cloud sync.
+   */
+  const [focusIndex, setFocusIndex] = useState(0);
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  const [restTotalSeconds, setRestTotalSeconds] = useState(DEFAULT_REST_SECONDS);
+  const [restExerciseName, setRestExerciseName] = useState("");
+  const [showFinishPanel, setShowFinishPanel] = useState(false);
+  const pagerRef = useRef<HTMLDivElement | null>(null);
 
   const canUseLowEnergyMode = workout?.length === "short";
   const hideAddOns = lowEnergyMode;
@@ -127,6 +153,8 @@ export default function ActiveSessionScreen() {
     }
     completionGuardRef.current = createCompletionGuard();
     setCompletingWorkout(false);
+    setRestEndsAt(null);
+    setShowFinishPanel(false);
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workout?.id]);
@@ -166,6 +194,34 @@ export default function ActiveSessionScreen() {
     legacyEntries
   ]);
 
+  // Resume where the session left off, and never point past the end after a
+  // Low-Energy or optional-block toggle changes the list length.
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated || loggableExercises.length === 0) return;
+    if (!resumedRef.current) {
+      const firstIncomplete = loggableExercises.findIndex(
+        (ex) => entries.find((e) => e.exerciseId === ex.id)?.completed !== true
+      );
+      setFocusIndex(firstIncomplete === -1 ? 0 : firstIncomplete);
+      resumedRef.current = true;
+      return;
+    }
+    setFocusIndex((prev) => Math.min(prev, loggableExercises.length - 1));
+  }, [hydrated, loggableExercises, entries]);
+
+  useEffect(() => {
+    resumedRef.current = false;
+  }, [workout?.id]);
+
+  // Keep the focused chip in view when advancing between exercises.
+  useEffect(() => {
+    const pager = pagerRef.current;
+    if (!pager) return;
+    const chip = pager.querySelector<HTMLElement>(`[data-chip-index="${focusIndex}"]`);
+    chip?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }, [focusIndex]);
+
   if (!workout) {
     return (
       <div className={styles.screen}>
@@ -202,6 +258,41 @@ export default function ActiveSessionScreen() {
     );
   };
 
+  /**
+   * Relative set change from the −/+ steppers.
+   *
+   * Computed inside the updater so a burst of taps (going 20 → 60 kg) applies
+   * every one of them; reading the rendered value instead would drop all but
+   * the first tap of a batch.
+   */
+  const nudgeSet = (
+    exerciseId: string,
+    setIndex: number,
+    field: keyof SetLog,
+    delta: number
+  ) => {
+    setEntries((prev) =>
+      prev.map((entry) => {
+        if (entry.exerciseId !== exerciseId) return entry;
+        const sets = entry.sets.map((set, index) => {
+          if (index !== setIndex) return set;
+          const current = field === "durationSeconds" ? (set.durationSeconds ?? 0) : set[field] ?? 0;
+          // Round to one decimal so 2.5 kg steps never drift to 47.50000000000001.
+          const next = Math.max(0, Number((current + delta).toFixed(1)));
+          return { ...set, [field]: next };
+        });
+        return { ...entry, sets };
+      })
+    );
+  };
+
+  const startRest = (exercise: Exercise) => {
+    const seconds = exercise.restSeconds ?? DEFAULT_REST_SECONDS;
+    setRestTotalSeconds(seconds);
+    setRestExerciseName(exercise.name);
+    setRestEndsAt(Date.now() + seconds * 1000);
+  };
+
   const markExerciseCompleted = (exercise: Exercise) => {
     const entry = entries.find((e) => e.exerciseId === exercise.id);
     if (isExerciseEntryEmpty(entry, exercise.measurementType)) {
@@ -213,6 +304,31 @@ export default function ActiveSessionScreen() {
     setEntries((prev) =>
       prev.map((e) => (e.exerciseId === exercise.id ? { ...e, completed: true } : e))
     );
+    setRestEndsAt(null);
+    goToNextIncomplete(exercise.id);
+  };
+
+  /** Advance to the next exercise still needing work, skipping the one just finished. */
+  const goToNextIncomplete = (justCompletedId: string) => {
+    const nextIndex = loggableExercises.findIndex((ex, index) => {
+      if (index <= focusIndex) return false;
+      if (ex.id === justCompletedId) return false;
+      return entries.find((e) => e.exerciseId === ex.id)?.completed !== true;
+    });
+    if (nextIndex !== -1) {
+      setFocusIndex(nextIndex);
+      return;
+    }
+    const anyIncomplete = loggableExercises.findIndex(
+      (ex) =>
+        ex.id !== justCompletedId &&
+        entries.find((e) => e.exerciseId === ex.id)?.completed !== true
+    );
+    if (anyIncomplete !== -1) {
+      setFocusIndex(anyIncomplete);
+    } else {
+      setShowFinishPanel(true);
+    }
   };
 
   const reopenExercise = (exerciseId: string) => {
@@ -241,6 +357,9 @@ export default function ActiveSessionScreen() {
     setSessionStartedAt(new Date().toISOString());
     completionGuardRef.current = createCompletionGuard();
     setCompletingWorkout(false);
+    setFocusIndex(0);
+    setRestEndsAt(null);
+    setShowFinishPanel(false);
   };
 
   const handleCompleteWorkout = () => {
@@ -277,7 +396,7 @@ export default function ActiveSessionScreen() {
   if (!hydrated) {
     return (
       <div className={styles.screen}>
-        <p className={styles.exerciseMeta}>Loading session…</p>
+        <p className={styles.loading}>Loading session…</p>
       </div>
     );
   }
@@ -286,328 +405,507 @@ export default function ActiveSessionScreen() {
   const showCorePrompt = (workout.optionalCore?.length ?? 0) > 0 && !hideAddOns;
   const showCardioPrompt = !!workout.cardio && !hideAddOns;
 
+  const total = loggableExercises.length;
+  const focused = loggableExercises[Math.min(focusIndex, total - 1)];
+  const allDone = total > 0 && completedCount === total;
+
   return (
     <div className={styles.screen}>
-      <header className={styles.header}>
-        <Link to={`/workout/${workout.id}`} className={styles.back}>
-          &larr; {workout.title}
-        </Link>
-        <p className={styles.draftHint}>
-          {IDENTITY_DISPLAY_LABEL[workout.identity]} · {completedCount}/{loggableExercises.length}{" "}
-          done · saved automatically
-        </p>
-        <h1 className={styles.title}>Log Your Sets</h1>
-      </header>
-
-      {canUseLowEnergyMode ? (
-        <div className={styles.lowEnergyToggle}>
-          <div>
-            <span className={styles.lowEnergyLabel}>Low-Energy Mode</span>
-            <p className={styles.lowEnergyHint}>
-              Keeps your Primary Lift at full sets. Caps other mandatory lifts to 2 sets and hides
-              optional add-ons without deleting their values. Shorter session — not a different
-              workout.
-            </p>
-          </div>
-          <button
-            type="button"
-            className={lowEnergyMode ? styles.toggleOn : styles.toggleOff}
-            aria-pressed={lowEnergyMode}
-            onClick={toggleLowEnergyMode}
-          >
-            {lowEnergyMode ? "On" : "Off"}
-          </button>
+      <div className={styles.stickyTop}>
+        <div className={styles.topRow}>
+          <Link to={`/workout/${workout.id}`} className={styles.back} aria-label="Back to workout">
+            ← <span className={styles.backLabel}>{workout.title}</span>
+          </Link>
+          <span className={styles.counter}>
+            {completedCount}/{total}
+          </span>
         </div>
-      ) : null}
-
-      <div className={styles.exerciseList}>
-        {loggableExercises.map((exercise) => {
-          const entry = entries.find((e) => e.exerciseId === exercise.id);
-          const lastWeight = getLastWeightForExercise(logs, exercise.id);
-          const fields = measurementFieldsFor(exercise.measurementType);
-          const isCompleted = entry?.completed === true;
-          const sideLabel = unilateralLabel(exercise);
-          const displaySets = visibleSetsForExercise(entry, exercise.targetSets);
-          const gridClass = fields.showWeight
-            ? styles.setsGridWeight
-            : fields.showDurationSeconds
-              ? styles.setsGridDuration
-              : styles.setsGridRepsOnly;
-
-          return (
-            <section
-              key={exercise.id}
-              className={
-                isCompleted ? `${styles.exercise} ${styles.exerciseCompleted}` : styles.exercise
-              }
-            >
-              <div className={styles.exerciseHeaderRow}>
-                <h2 className={styles.exerciseName}>{exercise.name}</h2>
-                <span className={styles.roleChip}>{roleDisplayLabel(exercise.role)}</span>
-                {isCompleted ? <span className={styles.completedBadge}>Completed</span> : null}
-              </div>
-              <p className={styles.exerciseMeta}>
-                Target: {exercise.targetSets} sets × {exercise.targetReps}
-                {sideLabel ? <span className={styles.perSideLabel}> · {sideLabel}</span> : null}
-              </p>
-              <ExerciseVisual visualAssetKey={exercise.visualAssetKey} variant="session" />
-              {fields.showWeight && lastWeight !== undefined ? (
-                <p className={styles.lastWeight}>Last: {lastWeight} kg</p>
-              ) : null}
-
-              {isCompleted ? (
-                <div className={styles.completedSummary}>
-                  <p className={styles.completedNote}>
-                    Marked complete
-                    {displaySets.some(
-                      (s) =>
-                        s.reps > 0 ||
-                        s.weight > 0 ||
-                        (s.durationSeconds ?? 0) > 0
-                    )
-                      ? ` · ${displaySets
-                          .map((s, i) => {
-                            if (fields.showDurationSeconds) {
-                              return `S${i + 1}: ${s.durationSeconds ?? 0}s`;
-                            }
-                            if (fields.showWeight) {
-                              return `S${i + 1}: ${s.weight}×${s.reps}`;
-                            }
-                            return `S${i + 1}: ${s.reps}`;
-                          })
-                          .join(" · ")}`
-                      : ""}
-                    . Finish with Complete Workout below when ready.
-                  </p>
-                  <button
-                    type="button"
-                    className={styles.reopenButton}
-                    onClick={() => reopenExercise(exercise.id)}
-                  >
-                    Edit Exercise
-                  </button>
-                </div>
-              ) : (
-                <>
-              <div className={gridClass} aria-disabled={isCompleted}>
-                <span className={styles.setsGridLabel}>Set</span>
-                {fields.showReps ? (
-                  <span className={styles.setsGridLabel}>
-                    Reps{sideLabel ? ` (${sideLabel})` : ""}
-                  </span>
-                ) : null}
-                {fields.showWeight ? <span className={styles.setsGridLabel}>Weight (kg)</span> : null}
-                {fields.showDurationSeconds ? (
-                  <span className={styles.setsGridLabel}>
-                    Duration (sec){sideLabel ? ` (${sideLabel})` : ""}
-                  </span>
-                ) : null}
-
-                {displaySets.map((set, setIndex) => (
-                  <Fragment key={setIndex}>
-                    <span className={styles.setNumber}>{setIndex + 1}</span>
-                    {fields.showReps ? (
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        className={styles.setInput}
-                        value={set.reps === 0 ? "" : set.reps}
-                        placeholder="0"
-                        disabled={isCompleted}
-                        aria-label={`${exercise.name} set ${setIndex + 1} reps`}
-                        onChange={(e) =>
-                          updateSet(exercise.id, setIndex, "reps", Number(e.target.value) || 0)
-                        }
-                      />
-                    ) : null}
-                    {fields.showWeight ? (
-                      <div className={styles.weightInputWrap}>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min={0}
-                          className={styles.setInput}
-                          value={set.weight === 0 ? "" : set.weight}
-                          placeholder={lastWeight !== undefined ? String(lastWeight) : "0"}
-                          disabled={isCompleted}
-                          aria-label={`${exercise.name} set ${setIndex + 1} weight kg`}
-                          onChange={(e) =>
-                            updateSet(exercise.id, setIndex, "weight", Number(e.target.value) || 0)
-                          }
-                        />
-                        <span className={styles.weightUnit}>kg</span>
-                      </div>
-                    ) : null}
-                    {fields.showDurationSeconds ? (
-                      <div className={styles.weightInputWrap}>
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={0}
-                          className={styles.setInput}
-                          value={!set.durationSeconds ? "" : set.durationSeconds}
-                          placeholder="0"
-                          disabled={isCompleted}
-                          aria-label={`${exercise.name} set ${setIndex + 1} duration seconds`}
-                          onChange={(e) =>
-                            updateSet(
-                              exercise.id,
-                              setIndex,
-                              "durationSeconds",
-                              Number(e.target.value) || 0
-                            )
-                          }
-                        />
-                        <span className={styles.weightUnit}>sec</span>
-                      </div>
-                    ) : null}
-                  </Fragment>
-                ))}
-              </div>
-
-                <button
-                  type="button"
-                  className={styles.completeExerciseButton}
-                  onClick={() => markExerciseCompleted(exercise)}
-                >
-                  Complete Exercise
-                </button>
-                </>
-              )}
-            </section>
-          );
-        })}
+        <div
+          className={styles.progressTrack}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={completedCount}
+          aria-label="Exercises completed"
+        >
+          <div
+            className={styles.progressFill}
+            style={{ width: total > 0 ? `${(completedCount / total) * 100}%` : "0%" }}
+          />
+        </div>
+        <div className={styles.pager} ref={pagerRef}>
+          {loggableExercises.map((exercise, index) => {
+            const done = entries.find((e) => e.exerciseId === exercise.id)?.completed === true;
+            const isFocused = index === focusIndex;
+            const chipClass = [
+              styles.chip,
+              done ? styles.chipDone : "",
+              isFocused ? styles.chipActive : ""
+            ]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <button
+                key={exercise.id}
+                type="button"
+                data-chip-index={index}
+                className={chipClass}
+                aria-current={isFocused ? "true" : undefined}
+                onClick={() => setFocusIndex(index)}
+              >
+                <span className={styles.chipIndex}>{done ? "✓" : index + 1}</span>
+                {shortName(exercise.name)}
+              </button>
+            );
+          })}
+        </div>
+        {restEndsAt != null ? (
+          <RestTimer
+            endsAt={restEndsAt}
+            totalSeconds={restTotalSeconds}
+            exerciseName={restExerciseName}
+            onExtend={(extra) => setRestEndsAt((prev) => (prev ?? Date.now()) + extra * 1000)}
+            onDismiss={() => setRestEndsAt(null)}
+          />
+        ) : null}
       </div>
 
-      {showCorePrompt || showCardioPrompt ? (
-        <section className={styles.cardioSection}>
-          <h2 className={styles.exerciseName}>Optional add-ons</h2>
-          <p className={styles.exerciseMeta}>Skipping is fine — not required to finish.</p>
-          {showCorePrompt ? (
-            <button
-              type="button"
-              className={optionalCoreEnabled ? styles.toggleOn : styles.completeExerciseButton}
-              onClick={() => setOptionalCoreEnabled((v) => !v)}
-            >
-              {optionalCoreEnabled ? "Hide 10 min Core" : "Add 10 min Core"}
-            </button>
-          ) : null}
-          {showCardioPrompt ? (
-            <button
-              type="button"
-              className={optionalCardioEnabled ? styles.toggleOn : styles.completeExerciseButton}
-              onClick={() => setOptionalCardioEnabled((v) => !v)}
-              style={{ marginTop: 8 }}
-            >
-              {optionalCardioEnabled
-                ? "Hide Cardio"
-                : `Add ${workout.cardio!.durationMinutes} min Cardio`}
-            </button>
-          ) : null}
-        </section>
-      ) : null}
+      {focused ? (
+        <FocusedExercise
+          key={focused.id}
+          exercise={focused}
+          entry={entries.find((e) => e.exerciseId === focused.id)}
+          lastWeight={getLastWeightForExercise(logs, focused.id)}
+          position={`${Math.min(focusIndex, total - 1) + 1} of ${total}`}
+          onUpdateSet={updateSet}
+          onNudgeSet={nudgeSet}
+          onStartRest={() => startRest(focused)}
+          onComplete={() => markExerciseCompleted(focused)}
+          onReopen={() => reopenExercise(focused.id)}
+          onNext={
+            focusIndex < total - 1 ? () => setFocusIndex((prev) => prev + 1) : undefined
+          }
+          onSwipePrev={
+            focusIndex > 0 ? () => setFocusIndex((prev) => Math.max(0, prev - 1)) : undefined
+          }
+          onSwipeNext={
+            focusIndex < total - 1
+              ? () => setFocusIndex((prev) => Math.min(total - 1, prev + 1))
+              : undefined
+          }
+        />
+      ) : (
+        <p className={styles.loading}>No exercises to log.</p>
+      )}
 
-      {showCardioBlock ? (
-        <section className={styles.cardioSection}>
-          <h2 className={styles.exerciseName}>Cardio (Optional)</h2>
-          <p className={styles.exerciseMeta}>
-            Elliptical or Stationary Bike — Planned {workout.cardio!.durationMinutes} min
-          </p>
-          <ExerciseVisual visualAssetKey={workout.cardio!.visualAssetKey} variant="session" />
-          <label className={styles.checkboxRow}>
-            <input
-              type="checkbox"
-              checked={cardioCompleted}
-              onChange={(e) => setCardioCompleted(e.target.checked)}
-            />
-            I completed the cardio block ({workout.cardio!.durationMinutes} min)
-          </label>
-        </section>
-      ) : null}
-
-      <section className={styles.feedbackSection}>
-        <h2 className={styles.exerciseName}>How did that feel?</h2>
-        <label className={styles.feedbackField}>
-          <span>Difficulty: {feedback.difficulty}/10</span>
-          <input
-            type="range"
-            min={1}
-            max={10}
-            value={feedback.difficulty}
-            onChange={(e) => updateFeedback("difficulty", Number(e.target.value))}
-          />
-        </label>
-        <div className={styles.feedbackField}>
-          <span>Energy</span>
-          <div className={styles.energyOptions}>
-            {ENERGY_OPTIONS.map((option) => (
+      <div className={styles.secondary}>
+        {canUseLowEnergyMode ? (
+          <section className={styles.card}>
+            <div className={styles.toggleRow}>
+              <span className={styles.cardTitle}>Low-Energy Mode</span>
               <button
-                key={option}
                 type="button"
-                className={
-                  feedback.energy === option ? styles.energyOptionActive : styles.energyOption
-                }
-                onClick={() => updateFeedback("energy", option)}
+                className={lowEnergyMode ? styles.switchOn : styles.switchOff}
+                aria-pressed={lowEnergyMode}
+                onClick={toggleLowEnergyMode}
               >
-                {option}
+                {lowEnergyMode ? "On" : "Off"}
               </button>
-            ))}
+            </div>
+            <p className={styles.cardHint}>
+              Keeps your Primary Lift at full sets, caps other lifts to {LOW_ENERGY_MAX_SETS} and
+              hides optional add-ons without deleting their values. Shorter session — not a
+              different workout.
+            </p>
+          </section>
+        ) : null}
+
+        {showCorePrompt || showCardioPrompt ? (
+          <section className={styles.card}>
+            <span className={styles.cardTitle}>Optional add-ons</span>
+            <p className={styles.cardHint}>Skipping is fine — not required to finish.</p>
+            <div className={styles.addonButtons}>
+              {showCorePrompt ? (
+                <button
+                  type="button"
+                  className={optionalCoreEnabled ? styles.pillOn : styles.pill}
+                  aria-pressed={optionalCoreEnabled}
+                  onClick={() => setOptionalCoreEnabled((v) => !v)}
+                >
+                  {optionalCoreEnabled ? "Core added" : "Add 10 min Core"}
+                </button>
+              ) : null}
+              {showCardioPrompt ? (
+                <button
+                  type="button"
+                  className={optionalCardioEnabled ? styles.pillOn : styles.pill}
+                  aria-pressed={optionalCardioEnabled}
+                  onClick={() => setOptionalCardioEnabled((v) => !v)}
+                >
+                  {optionalCardioEnabled
+                    ? "Cardio added"
+                    : `Add ${workout.cardio!.durationMinutes} min Cardio`}
+                </button>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {showCardioBlock ? (
+          <section className={styles.card}>
+            <span className={styles.cardTitle}>Cardio</span>
+            <p className={styles.cardHint}>
+              Elliptical or Stationary Bike — planned {workout.cardio!.durationMinutes} min
+            </p>
+            <ExerciseVisual visualAssetKey={workout.cardio!.visualAssetKey} variant="session" />
+            <label className={styles.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={cardioCompleted}
+                onChange={(e) => setCardioCompleted(e.target.checked)}
+              />
+              I completed the cardio block ({workout.cardio!.durationMinutes} min)
+            </label>
+          </section>
+        ) : null}
+
+        <section className={styles.card}>
+          <button
+            type="button"
+            className={styles.disclosure}
+            aria-expanded={showFinishPanel}
+            onClick={() => setShowFinishPanel((v) => !v)}
+          >
+            <span className={styles.cardTitle}>
+              {allDone ? "Ready to finish" : "Finish & feedback"}
+            </span>
+            <span className={styles.disclosureIcon}>{showFinishPanel ? "▾" : "▸"}</span>
+          </button>
+          {!showFinishPanel ? (
+            <p className={styles.cardHint}>
+              {allDone
+                ? "All exercises logged. Open to add feedback and save."
+                : `${completedCount} of ${total} exercises logged so far.`}
+            </p>
+          ) : null}
+
+          {showFinishPanel ? (
+            <div className={styles.finishPanel}>
+              <label className={styles.feedbackField}>
+                <span>Difficulty: {feedback.difficulty}/10</span>
+                <input
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={feedback.difficulty}
+                  onChange={(e) => updateFeedback("difficulty", Number(e.target.value))}
+                />
+              </label>
+              <div className={styles.feedbackField}>
+                <span>Energy</span>
+                <div className={styles.energyOptions}>
+                  {ENERGY_OPTIONS.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className={
+                        feedback.energy === option ? styles.energyOptionActive : styles.energyOption
+                      }
+                      onClick={() => updateFeedback("energy", option)}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label className={styles.feedbackField}>
+                <span>Lower-back pain: {feedback.lowerBackPain}/10</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  value={feedback.lowerBackPain}
+                  onChange={(e) => updateFeedback("lowerBackPain", Number(e.target.value))}
+                />
+              </label>
+              <label className={styles.feedbackField}>
+                <span>Knee pain: {feedback.kneePain}/10</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  value={feedback.kneePain}
+                  onChange={(e) => updateFeedback("kneePain", Number(e.target.value))}
+                />
+              </label>
+              <label className={styles.feedbackField}>
+                <span>Shoulder pain: {feedback.shoulderPain}/10</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  value={feedback.shoulderPain}
+                  onChange={(e) => updateFeedback("shoulderPain", Number(e.target.value))}
+                />
+              </label>
+              <label className={styles.feedbackField}>
+                <span>Note (optional)</span>
+                <textarea
+                  className={styles.noteInput}
+                  value={feedback.note ?? ""}
+                  onChange={(e) => updateFeedback("note", e.target.value)}
+                  rows={3}
+                  placeholder="Anything worth remembering for next time?"
+                />
+              </label>
+
+              <button
+                type="button"
+                className={styles.completeButton}
+                onClick={handleCompleteWorkout}
+                disabled={completingWorkout}
+              >
+                {completingWorkout ? "Saving…" : "Complete Workout"}
+              </button>
+              <button
+                type="button"
+                className={styles.discardButton}
+                onClick={handleDiscardDraft}
+              >
+                Discard Workout Draft
+              </button>
+            </div>
+          ) : null}
+        </section>
+
+        <p className={styles.autosaveHint}>
+          {IDENTITY_DISPLAY_LABEL[workout.identity]} · saved automatically as you type
+        </p>
+      </div>
+    </div>
+  );
+}
+
+interface FocusedExerciseProps {
+  exercise: Exercise;
+  entry: ExerciseLog | undefined;
+  lastWeight: number | undefined;
+  position: string;
+  onUpdateSet: (exerciseId: string, setIndex: number, field: keyof SetLog, value: number) => void;
+  onNudgeSet: (exerciseId: string, setIndex: number, field: keyof SetLog, delta: number) => void;
+  onStartRest: () => void;
+  onComplete: () => void;
+  onReopen: () => void;
+  onNext?: () => void;
+  onSwipePrev?: () => void;
+  onSwipeNext?: () => void;
+}
+
+const SWIPE_MIN_DISTANCE_PX = 60;
+/** A swipe must be clearly horizontal, or scrolling the page would change exercise. */
+const SWIPE_HORIZONTAL_RATIO = 1.8;
+
+/**
+ * The one exercise the user is actually doing right now, at full size.
+ *
+ * Showing every exercise at once turned the session into a scroll hunt; this
+ * keeps the visual, the target and the set inputs on a single thumb-reachable
+ * screen, with the pager above for jumping out of order.
+ */
+function FocusedExercise({
+  exercise,
+  entry,
+  lastWeight,
+  position,
+  onUpdateSet,
+  onNudgeSet,
+  onStartRest,
+  onComplete,
+  onReopen,
+  onNext,
+  onSwipePrev,
+  onSwipeNext
+}: FocusedExerciseProps) {
+  const swipeStartRef = useRef<{ x: number; y: number; onControl: boolean } | null>(null);
+
+  const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    // Starting on a stepper, slider or checkbox means the user is adjusting a
+    // value, not navigating — never steal that gesture.
+    const onControl = !!(event.target as HTMLElement).closest(
+      "input, textarea, select, button, a"
+    );
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY, onControl };
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLElement>) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start || start.onControl) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_MIN_DISTANCE_PX) return;
+    if (Math.abs(dx) < Math.abs(dy) * SWIPE_HORIZONTAL_RATIO) return;
+    if (dx < 0) onSwipeNext?.();
+    else onSwipePrev?.();
+  };
+
+  const fields = measurementFieldsFor(exercise.measurementType);
+  const isCompleted = entry?.completed === true;
+  const sideLabel = unilateralLabel(exercise);
+  const displaySets = visibleSetsForExercise(entry, exercise.targetSets);
+  const loggedSets = displaySets.filter(setHasValues).length;
+
+  return (
+    <section
+      className={isCompleted ? `${styles.focus} ${styles.focusDone}` : styles.focus}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      <ExerciseVisual visualAssetKey={exercise.visualAssetKey} variant="session" eager />
+      {onSwipePrev || onSwipeNext ? (
+        <p className={styles.swipeHint}>← swipe to change exercise →</p>
+      ) : null}
+
+      <div className={styles.focusHead}>
+        <span className={styles.position}>{position}</span>
+        <h1 className={styles.exerciseName}>{exercise.name}</h1>
+        <div className={styles.metaRow}>
+          <span className={styles.roleChip}>{roleDisplayLabel(exercise.role)}</span>
+          <span className={styles.target}>
+            {exercise.targetSets} × {exercise.targetReps}
+          </span>
+          {sideLabel ? <span className={styles.sideChip}>{sideLabel}</span> : null}
+          {exercise.restSeconds ? (
+            <span className={styles.restChip}>rest {exercise.restSeconds}s</span>
+          ) : null}
+        </div>
+        {fields.showWeight && lastWeight !== undefined ? (
+          <p className={styles.lastWeight}>
+            Last session: <strong>{lastWeight} kg</strong>
+          </p>
+        ) : null}
+      </div>
+
+      {isCompleted ? (
+        <div className={styles.completedSummary}>
+          <p className={styles.completedNote}>
+            Completed
+            {displaySets.some(setHasValues)
+              ? ` · ${displaySets
+                  .map((s, i) => {
+                    if (fields.showDurationSeconds) return `S${i + 1}: ${s.durationSeconds ?? 0}s`;
+                    if (fields.showWeight) return `S${i + 1}: ${s.weight}×${s.reps}`;
+                    return `S${i + 1}: ${s.reps}`;
+                  })
+                  .join(" · ")}`
+              : ""}
+          </p>
+          <div className={styles.completedActions}>
+            <button type="button" className={styles.secondaryButton} onClick={onReopen}>
+              Edit Exercise
+            </button>
+            {onNext ? (
+              <button type="button" className={styles.primaryButton} onClick={onNext}>
+                Next exercise →
+              </button>
+            ) : null}
           </div>
         </div>
-        <label className={styles.feedbackField}>
-          <span>Lower-back pain: {feedback.lowerBackPain}/10</span>
-          <input
-            type="range"
-            min={0}
-            max={10}
-            value={feedback.lowerBackPain}
-            onChange={(e) => updateFeedback("lowerBackPain", Number(e.target.value))}
-          />
-        </label>
-        <label className={styles.feedbackField}>
-          <span>Knee pain: {feedback.kneePain}/10</span>
-          <input
-            type="range"
-            min={0}
-            max={10}
-            value={feedback.kneePain}
-            onChange={(e) => updateFeedback("kneePain", Number(e.target.value))}
-          />
-        </label>
-        <label className={styles.feedbackField}>
-          <span>Shoulder pain: {feedback.shoulderPain}/10</span>
-          <input
-            type="range"
-            min={0}
-            max={10}
-            value={feedback.shoulderPain}
-            onChange={(e) => updateFeedback("shoulderPain", Number(e.target.value))}
-          />
-        </label>
-        <label className={styles.feedbackField}>
-          <span>Note (optional)</span>
-          <textarea
-            className={styles.noteInput}
-            value={feedback.note ?? ""}
-            onChange={(e) => updateFeedback("note", e.target.value)}
-            rows={3}
-            placeholder="Anything worth remembering for next time?"
-          />
-        </label>
-      </section>
+      ) : (
+        <>
+          <div className={styles.setList}>
+            {displaySets.map((set, setIndex) => {
+              const logged = setHasValues(set);
+              return (
+                <Fragment key={setIndex}>
+                  <div className={logged ? `${styles.setRow} ${styles.setRowLogged}` : styles.setRow}>
+                    <span className={styles.setNumber}>{setIndex + 1}</span>
+                    <div className={styles.setFields}>
+                      {fields.showReps ? (
+                        <label className={styles.fieldGroup}>
+                          <span className={styles.fieldLabel}>
+                            Reps{sideLabel ? ` · ${sideLabel}` : ""}
+                          </span>
+                          <NumberStepper
+                            value={set.reps}
+                            step={1}
+                            ariaLabel={`${exercise.name} set ${setIndex + 1} reps`}
+                            onChange={(next) => onUpdateSet(exercise.id, setIndex, "reps", next)}
+                            onNudge={(delta) => onNudgeSet(exercise.id, setIndex, "reps", delta)}
+                          />
+                        </label>
+                      ) : null}
+                      {fields.showWeight ? (
+                        <label className={styles.fieldGroup}>
+                          <span className={styles.fieldLabel}>Weight</span>
+                          <NumberStepper
+                            value={set.weight}
+                            step={WEIGHT_STEP_KG}
+                            unit="kg"
+                            placeholder={lastWeight !== undefined ? String(lastWeight) : "0"}
+                            ariaLabel={`${exercise.name} set ${setIndex + 1} weight in kg`}
+                            onChange={(next) => onUpdateSet(exercise.id, setIndex, "weight", next)}
+                            onNudge={(delta) => onNudgeSet(exercise.id, setIndex, "weight", delta)}
+                          />
+                        </label>
+                      ) : null}
+                      {fields.showDurationSeconds ? (
+                        <label className={styles.fieldGroup}>
+                          <span className={styles.fieldLabel}>
+                            Duration{sideLabel ? ` · ${sideLabel}` : ""}
+                          </span>
+                          <NumberStepper
+                            value={set.durationSeconds ?? 0}
+                            step={DURATION_STEP_SECONDS}
+                            unit="sec"
+                            ariaLabel={`${exercise.name} set ${setIndex + 1} duration in seconds`}
+                            onChange={(next) =>
+                              onUpdateSet(exercise.id, setIndex, "durationSeconds", next)
+                            }
+                            onNudge={(delta) =>
+                              onNudgeSet(exercise.id, setIndex, "durationSeconds", delta)
+                            }
+                          />
+                        </label>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.restButton}
+                      onClick={onStartRest}
+                      aria-label={`Start rest timer after set ${setIndex + 1}`}
+                      title="Start rest timer"
+                    >
+                      ⏱
+                    </button>
+                  </div>
+                </Fragment>
+              );
+            })}
+          </div>
 
-      <button
-        type="button"
-        className={styles.completeButton}
-        onClick={handleCompleteWorkout}
-        disabled={completingWorkout}
-      >
-        {completingWorkout ? "Saving…" : "Complete Workout"}
-      </button>
-      <button type="button" className={styles.discardButton} onClick={handleDiscardDraft}>
-        Discard Workout Draft
-      </button>
-    </div>
+          <button type="button" className={styles.primaryButtonWide} onClick={onComplete}>
+            Complete Exercise
+            {loggedSets > 0 ? (
+              <span className={styles.buttonSub}>
+                {loggedSets}/{displaySets.length} sets filled
+              </span>
+            ) : null}
+          </button>
+        </>
+      )}
+
+      {exercise.safetyNote ? (
+        <p className={styles.safetyNote}>
+          <span className={styles.safetyLabel}>Safety</span>
+          {exercise.safetyNote}
+        </p>
+      ) : null}
+      {exercise.notes ? <p className={styles.note}>{exercise.notes}</p> : null}
+    </section>
   );
 }

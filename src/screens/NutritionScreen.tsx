@@ -36,6 +36,52 @@ function resolveDateKey(param: string | undefined): string {
   return todayLocalDateKey();
 }
 
+/** Consumed-against-target bar. Fill is clamped; going over is shown by colour. */
+function Meter({
+  label,
+  unit,
+  value,
+  target,
+  over,
+  display,
+  note
+}: {
+  label: string;
+  unit: string;
+  value: number;
+  target: number;
+  over: boolean;
+  display: string;
+  note: string;
+}) {
+  const ratio = target > 0 ? Math.min(1, Math.max(0, value / target)) : 0;
+  return (
+    <div className={styles.meter}>
+      <div className={styles.meterHead}>
+        <span className={styles.meterLabel}>{label}</span>
+        <span className={styles.meterValue}>
+          {display}
+          <span className={styles.meterUnit}>{unit}</span>
+        </span>
+      </div>
+      <div
+        className={styles.meterTrack}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={target}
+        aria-valuenow={value}
+        aria-label={`${label} against target`}
+      >
+        <div
+          className={over ? styles.meterFillOver : styles.meterFill}
+          style={{ width: `${ratio * 100}%` }}
+        />
+      </div>
+      <span className={over ? styles.meterNoteOver : styles.meterNote}>{note}</span>
+    </div>
+  );
+}
+
 function formatNumber(n: number, decimals = 0): string {
   if (!Number.isFinite(n)) return "0";
   return n.toLocaleString(undefined, {
@@ -282,20 +328,44 @@ export default function NutritionScreen() {
         </div>
       </header>
 
+      {/* Two meters instead of a bullet list: how far through the day you are is
+          the whole question this screen answers, so it should be readable at a glance. */}
       <section className={styles.section} aria-labelledby="nutrition-summary-heading">
         <h2 id="nutrition-summary-heading" className={styles.sectionTitle}>
           Daily summary
         </h2>
-        <ul className={styles.summaryList}>
-          <li>
-            Calories: {formatNumber(totals.calories)} / {formatNumber(settings.calorieTarget)} kcal
-          </li>
-          <li>
-            Protein: {formatNumber(totals.proteinGrams, 1)} / {formatNumber(settings.proteinTargetGrams, 1)}{" "}
-            g
-          </li>
-          <li className={styles.remaining}>{remainingLine}</li>
-        </ul>
+        <div className={styles.meters}>
+          <Meter
+            label="Calories"
+            unit="kcal"
+            value={totals.calories}
+            target={settings.calorieTarget}
+            over={remaining.caloriesOverTarget}
+            display={`${formatNumber(totals.calories)} / ${formatNumber(settings.calorieTarget)}`}
+            note={
+              remaining.caloriesOverTarget
+                ? `${formatNumber(remaining.caloriesOverBy)} over`
+                : `${formatNumber(remaining.caloriesRemaining)} left`
+            }
+          />
+          <Meter
+            label="Protein"
+            unit="g"
+            value={totals.proteinGrams}
+            target={settings.proteinTargetGrams}
+            over={remaining.proteinOverTarget}
+            display={`${formatNumber(totals.proteinGrams, 1)} / ${formatNumber(
+              settings.proteinTargetGrams,
+              1
+            )}`}
+            note={
+              remaining.proteinOverTarget
+                ? `${formatNumber(remaining.proteinOverBy, 1)} over`
+                : `${formatNumber(remaining.proteinRemaining, 1)} left`
+            }
+          />
+        </div>
+        <p className={styles.srOnly}>{remainingLine}</p>
       </section>
 
       <section className={styles.section} aria-labelledby="nutrition-workouts-heading">

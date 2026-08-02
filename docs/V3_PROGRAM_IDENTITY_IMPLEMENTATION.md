@@ -1,10 +1,15 @@
 # V3 Program Identity — Implementation Notes
 
-**Branch:** `phase-7-program-identity`  
+**Branch:** `phase-7-program-identity` (merged to `main` via PR #3)  
 **Program version:** `v3-program-identity`  
-**Status:** Phase 7C fixes applied locally — not committed until requested.
+**Status:** Merged and deployed to GitHub Pages.
 
-## Final four templates (normal weeks)
+> **Partly superseded.** The template contents, session budgets and weekly
+> volume targets below were replaced by the two-block accessory rotation —
+> see [V3_BLOCK_ROTATION.md](V3_BLOCK_ROTATION.md). Everything else on this page
+> (identity, schedule, roles, optional blocks, draft migration) still applies.
+
+## Four templates — as originally shipped in Phase 7
 
 | Day | Identity | Exercises | Mandatory sets | Main duration | Primary Lift |
 | --- | --- | ---: | ---: | --- | --- |
@@ -12,6 +17,9 @@
 | Wed Lower A | Quad | 5 | 15 | ~40–55 min | Leg Press |
 | Fri Upper B | Pull | 7 | 21 | ~70–90 min | Chest-Supported Row Machine |
 | Sun Lower B | Posterior | 7 | 21 | ~75–95 min | Hip Thrust |
+
+Current values: 6/18, 5/15, 8/25 and 7/22 respectively. Primary Lifts are
+unchanged, in both training blocks.
 
 Optional add-ons (Fri/Sun only) sit **outside** main duration: Core ~+10 min, Cardio ~+15–20 min (combined wall-clock often +25–35 min).
 

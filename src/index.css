@@ -9,6 +9,9 @@
   --color-accent-text: #0b1f1c;
   --color-locked: #565c68;
   --color-danger: #e5484d;
+  --color-success: #3ddc97;
+  --color-success-dim: rgba(61, 220, 151, 0.14);
+  --color-accent-dim: rgba(79, 209, 197, 0.14);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -18,7 +21,12 @@
   --space-6: 32px;
 
   --radius: 12px;
+  --radius-lg: 18px;
   --tap-target: 44px;
+  /* Thumb-reachable controls in the gym: bigger than the a11y minimum. */
+  --tap-target-lg: 52px;
+  --shadow-raised: 0 -8px 24px rgba(0, 0, 0, 0.5);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 
   color-scheme: dark;
 }
@@ -41,11 +49,19 @@ body {
   overscroll-behavior-y: none;
 }
 
+/**
+ * A definite height, not min-height: with min-height the root simply grew past
+ * the viewport, `.main`'s overflow-y never engaged, the document scrolled
+ * instead, and the bottom navigation ended up below the fold — you had to
+ * scroll a whole screen to reach Nutrition/History/Account. `dvh` keeps this
+ * correct while a mobile browser's URL bar collapses.
+ */
 #root {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 button {

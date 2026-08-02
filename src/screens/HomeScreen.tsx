@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAllWorkouts, programSlots } from "../data/program";
 import { getSlotDisplayStatus } from "../lib/progress";
@@ -24,9 +24,21 @@ import {
 import styles from "./HomeScreen.module.css";
 
 const IDENTITY_ORDER: WorkoutIdentity[] = ["push", "quad", "pull", "posterior"];
+const WEEK_NUMBERS = Array.from({ length: 8 }, (_, i) => i + 1);
 
 function weekWorkouts(week: number): Workout[] {
   return getAllWorkouts().filter((w) => w.week === week);
+}
+
+/**
+ * Surfaces the two-block structure the program actually runs on, so weeks 6–8
+ * reading differently from weeks 1–4 is expected rather than confusing.
+ */
+function blockLabelForWeek(week: number): string {
+  const sample = weekWorkouts(week)[0];
+  if (!sample) return "";
+  if (sample.phaseLabel.toLowerCase().includes("deload")) return "Deload week";
+  return `Block ${sample.trainingBlock}`;
 }
 
 export default function HomeScreen() {
@@ -34,11 +46,10 @@ export default function HomeScreen() {
   const { notifyLocalMutation } = useCloudAuth();
   const [schedule, setSchedule] = useState(() => getProgramScheduleSettings());
   const [startDraft, setStartDraft] = useState(schedule.startDateKey ?? "");
-  const [collapsedWeeks, setCollapsedWeeks] = useState<Record<number, boolean>>(() => {
-    const init: Record<number, boolean> = {};
-    for (let w = 1; w <= 8; w++) init[w] = w > 1;
-    return init;
-  });
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [activeWeek, setActiveWeek] = useState(1);
+  const weekPagerRef = useRef<HTMLDivElement | null>(null);
+  const weekInitialisedRef = useRef(false);
 
   const todayKey = todayLocalDateKey();
   const allWorkouts = useMemo(() => getAllWorkouts(), []);
@@ -92,6 +103,30 @@ export default function HomeScreen() {
     notifyLocalMutation();
   };
 
+  const goToWeek = (week: number) => {
+    const pager = weekPagerRef.current;
+    if (!pager) return;
+    pager.scrollTo({ left: (week - 1) * pager.clientWidth, behavior: "smooth" });
+    setActiveWeek(week);
+  };
+
+  /** Scroll position is the source of truth so swiping and the tabs agree. */
+  const handleWeekScroll = () => {
+    const pager = weekPagerRef.current;
+    if (!pager || pager.clientWidth === 0) return;
+    const week = Math.round(pager.scrollLeft / pager.clientWidth) + 1;
+    setActiveWeek(Math.min(8, Math.max(1, week)));
+  };
+
+  // Open on the week you are actually in, without animating on first paint.
+  useEffect(() => {
+    const pager = weekPagerRef.current;
+    if (!pager || weekInitialisedRef.current || pager.clientWidth === 0) return;
+    weekInitialisedRef.current = true;
+    pager.scrollLeft = (currentWeek - 1) * pager.clientWidth;
+    setActiveWeek(currentWeek);
+  }, [currentWeek]);
+
   const todayMatchesNext =
     today.kind === "preferred" &&
     next != null &&
@@ -101,71 +136,86 @@ export default function HomeScreen() {
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <p className={styles.kicker}>8-Week Strength Plan</p>
-        <h1 className={styles.title}>Your Program</h1>
+        <div className={styles.headerTop}>
+          <div>
+            <p className={styles.kicker}>8-Week Strength Plan</p>
+            <h1 className={styles.title}>Your Program</h1>
+          </div>
+          <span className={styles.progressCount}>
+            <strong>{completedCount}</strong>
+            <span>/32</span>
+          </span>
+        </div>
+        <div
+          className={styles.progressTrack}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={32}
+          aria-valuenow={completedCount}
+          aria-label="Workouts completed"
+        >
+          <div
+            className={styles.progressFill}
+            style={{ width: `${(completedCount / 32) * 100}%` }}
+          />
+        </div>
         <p className={styles.subtitle}>
-          Week {currentWeek} of 8 · {completedCount} of 32 done
+          Week {currentWeek} of 8 · {blockLabelForWeek(currentWeek)}
         </p>
       </header>
 
-      <section className={styles.hero} aria-label="Today and next recommended">
-        <div className={styles.todayBlock} aria-label="Today's preferred session">
-          <p className={styles.heroEyebrow}>{today.eyebrow}</p>
-          <h2 className={styles.todayTitle}>{today.title}</h2>
-          <p className={styles.heroCopy}>{today.detail}</p>
-          {today.kind === "preferred" && today.workout ? (
-            <p className={styles.heroMeta}>
-              ~{today.workout.estimatedDurationMinutes.min}–
-              {today.workout.estimatedDurationMinutes.max} min main
-              {schedule.startDateKey && plannedFor(today.workout)
-                ? ` · ${scheduleStatusCopy({
-                    preferredWeekday: today.workout.preferredWeekday,
-                    plannedDateKey: plannedFor(today.workout),
-                    isCompleted: completedOrders.has(today.workout.order),
-                    isRecommendedNext: false,
-                    todayKey
-                  })}`
-                : null}
-            </p>
-          ) : null}
-        </div>
-
-        <div className={styles.nextBlock} aria-label="Next recommended workout">
-          <p className={styles.nextEyebrow}>Next recommended</p>
-          {next ? (
-            <>
-              <h2 className={styles.heroTitle}>
-                {IDENTITY_DISPLAY_LABEL[next.identity]} · {next.variantLabel}
-              </h2>
-              <p className={styles.heroFocus}>{next.focus}</p>
-              <p className={styles.heroMeta}>
-                Workout {next.order} · {PREFERRED_WEEKDAY_LABEL[next.preferredWeekday]}
-                {" · "}~{next.estimatedDurationMinutes.min}–{next.estimatedDurationMinutes.max}{" "}
-                min main · Week {next.week}
+      {/* The action to take now. Recommended Next is program order — it can
+          differ from today's preferred weekday, so Today stays a separate note. */}
+      <section className={styles.hero} aria-label="Next recommended workout">
+        {next ? (
+          <>
+            <div className={styles.heroHead}>
+              <p className={styles.nextEyebrow}>Next recommended</p>
+              <span className={styles.heroOrder}>#{next.order}</span>
+            </div>
+            <h2 className={styles.heroTitle}>
+              {IDENTITY_DISPLAY_LABEL[next.identity]} · {next.variantLabel}
+            </h2>
+            <p className={styles.heroFocus}>{next.focus}</p>
+            <div className={styles.heroFacts}>
+              <span className={styles.heroFact}>
+                {PREFERRED_WEEKDAY_LABEL[next.preferredWeekday]}
+              </span>
+              <span className={styles.heroFact}>
+                ~{next.estimatedDurationMinutes.min}–{next.estimatedDurationMinutes.max} min
+              </span>
+              <span className={styles.heroFact}>Week {next.week}</span>
+            </div>
+            {plannedFor(next) ? (
+              /* Only worth a line when a start date is set — otherwise this just
+                 repeats the "Next recommended" eyebrow above. */
+              <p className={styles.heroCopy}>
+                {scheduleStatusCopy({
+                  preferredWeekday: next.preferredWeekday,
+                  plannedDateKey: plannedFor(next),
+                  isCompleted: completedOrders.has(next.order),
+                  isRecommendedNext: true,
+                  todayKey
+                })}
               </p>
-              {!todayMatchesNext && today.kind === "preferred" ? (
-                <p className={styles.heroCopy}>
-                  Today’s preferred day differs from program order — train either freely.
-                </p>
-              ) : (
-                <p className={styles.heroCopy}>
-                  {scheduleStatusCopy({
-                    preferredWeekday: next.preferredWeekday,
-                    plannedDateKey: plannedFor(next),
-                    isCompleted: completedOrders.has(next.order),
-                    isRecommendedNext: true,
-                    todayKey
-                  })}
-                </p>
-              )}
-              <Link to={`/workout/${next.id}`} className={styles.heroCta}>
-                Continue {next.variantLabel}
-              </Link>
-            </>
-          ) : (
-            <p className={styles.heroFocus}>All 32 workouts completed — great work.</p>
-          )}
-        </div>
+            ) : null}
+            <Link to={`/workout/${next.id}`} className={styles.heroCta}>
+              Continue {next.variantLabel}
+            </Link>
+          </>
+        ) : (
+          <p className={styles.heroFocus}>All 32 workouts completed — great work.</p>
+        )}
+      </section>
+
+      <section className={styles.todayNote} aria-label="Today's preferred session">
+        <p className={styles.todayEyebrow}>{today.eyebrow}</p>
+        <p className={styles.todayTitle}>{today.title}</p>
+        <p className={styles.todayDetail}>
+          {!todayMatchesNext && today.kind === "preferred"
+            ? "Today’s preferred day differs from program order — train either freely."
+            : today.detail}
+        </p>
       </section>
 
       <section className={styles.weekStrip} aria-label="This week">
@@ -205,7 +255,9 @@ export default function HomeScreen() {
                             isRecommendedNext: false,
                             todayKey
                           })
-                        : PREFERRED_WEEKDAY_LABEL[workout.preferredWeekday].slice(0, 3)}
+                        : /* No date set: the weekday is already on the line above,
+                             so show the time cost instead of repeating it. */
+                          `~${workout.estimatedDurationMinutes.min}–${workout.estimatedDurationMinutes.max}m`}
                 </span>
               </Link>
             );
@@ -213,108 +265,142 @@ export default function HomeScreen() {
         </div>
       </section>
 
-      <section className={styles.scheduleBox} aria-label="Program start date">
-        <h2 className={styles.sectionLabel}>Week 1 Upper A date</h2>
-        <p className={styles.scheduleHint}>
-          Optional. Sets planned dates from Workout 1. Preferred pattern stays Tue / Wed / Fri /
-          Sun — choosing another weekday does not change your date.
-        </p>
-        <div className={styles.scheduleRow}>
-          <input
-            type="date"
-            className={styles.dateInput}
-            value={startDraft}
-            onChange={(e) => setStartDraft(e.target.value)}
-            aria-label="Week 1 Upper A date"
-          />
-          <button type="button" className={styles.scheduleBtn} onClick={saveStartDate}>
-            Save
-          </button>
-          {schedule.startDateKey ? (
-            <button type="button" className={styles.scheduleBtnGhost} onClick={clearStartDate}>
-              Clear
-            </button>
-          ) : null}
-        </div>
-      </section>
-
+      {/* Eight stacked collapsible weeks made this screen enormous. One week per
+          swipeable page keeps the whole program one gesture away at a fixed height. */}
       <section className={styles.programList} aria-label="Full program">
-        <h2 className={styles.sectionLabel}>Full program</h2>
-        <ul className={styles.list}>
-          {Array.from({ length: 8 }, (_, i) => i + 1).map((week) => {
-            const collapsed = collapsedWeeks[week] === true;
+        <div className={styles.programHead}>
+          <h2 className={styles.sectionLabel}>Full program</h2>
+          <span className={styles.activeWeekBlock}>{blockLabelForWeek(activeWeek)}</span>
+        </div>
+
+        <div className={styles.weekTabs} role="tablist" aria-label="Program week">
+          {WEEK_NUMBERS.map((week) => (
+            <button
+              key={week}
+              type="button"
+              role="tab"
+              aria-selected={week === activeWeek}
+              aria-controls={`week-page-${week}`}
+              className={week === activeWeek ? styles.weekTabActive : styles.weekTab}
+              onClick={() => goToWeek(week)}
+            >
+              {week}
+            </button>
+          ))}
+        </div>
+
+        <div className={styles.weekPager} ref={weekPagerRef} onScroll={handleWeekScroll}>
+          {WEEK_NUMBERS.map((week) => {
             const slots = programSlots.filter(
               (s) => s.status === "ready" && s.workout.week === week
             );
             return (
-              <Fragment key={week}>
-                <li className={styles.weekHeader}>
-                  <button
-                    type="button"
-                    className={styles.weekToggle}
-                    onClick={() =>
-                      setCollapsedWeeks((prev) => ({ ...prev, [week]: !prev[week] }))
-                    }
-                    aria-expanded={!collapsed}
-                  >
-                    Week {week}
-                    <span className={styles.weekToggleHint}>{collapsed ? "Show" : "Hide"}</span>
-                  </button>
-                </li>
-                {!collapsed
-                  ? slots.map((slot) => {
-                      if (slot.status !== "ready") return null;
-                      const workout = slot.workout;
-                      const status = getSlotDisplayStatus(
-                        slot,
-                        completedOrders,
-                        recommendedNextOrder
-                      );
-                      const planned = plannedFor(workout);
-                      return (
-                        <li key={slot.order} className={styles.item}>
-                          <Link to={`/workout/${workout.id}`} className={styles.itemLink}>
-                            <span className={styles.order}>{slot.order}</span>
-                            <span className={styles.itemBody}>
-                              <span className={styles.itemTitle}>
-                                {IDENTITY_DISPLAY_LABEL[workout.identity]} · {workout.variantLabel}
+              <div
+                key={week}
+                id={`week-page-${week}`}
+                role="tabpanel"
+                aria-label={`Week ${week}`}
+                className={styles.weekPage}
+              >
+                <ul className={styles.list}>
+                  {slots.map((slot) => {
+                    if (slot.status !== "ready") return null;
+                    const workout = slot.workout;
+                    const status = getSlotDisplayStatus(
+                      slot,
+                      completedOrders,
+                      recommendedNextOrder
+                    );
+                    const planned = plannedFor(workout);
+                    return (
+                      <li key={slot.order} className={styles.item}>
+                        <Link to={`/workout/${workout.id}`} className={styles.itemLink}>
+                          <span className={styles.order}>{slot.order}</span>
+                          <span className={styles.itemBody}>
+                            <span className={styles.itemTitle}>
+                              {IDENTITY_DISPLAY_LABEL[workout.identity]} · {workout.variantLabel}
+                            </span>
+                            <span className={styles.tagRow}>
+                              <span
+                                className={
+                                  workout.length === "short" ? styles.tagWorkday : styles.tagOffDay
+                                }
+                              >
+                                {workout.length === "short" ? "Workday" : "Off day"}
                               </span>
-                              <span className={styles.tagRow}>
-                                <span className={styles.tagIdentity}>
-                                  {IDENTITY_DISPLAY_LABEL[workout.identity]}
-                                </span>
-                                <span
-                                  className={
-                                    workout.length === "short" ? styles.tagWorkday : styles.tagOffDay
-                                  }
-                                >
-                                  {workout.length === "short" ? "Workday" : "Off day"}
-                                </span>
-                                <span className={styles.dayLabel}>
-                                  {PREFERRED_WEEKDAY_LABEL[workout.preferredWeekday]}
-                                </span>
+                              <span className={styles.dayLabel}>
+                                {PREFERRED_WEEKDAY_LABEL[workout.preferredWeekday]}
                               </span>
-                              <span className={styles.muscleLine}>
-                                {scheduleStatusCopy({
-                                  preferredWeekday: workout.preferredWeekday,
-                                  plannedDateKey: planned,
-                                  actualDateKey: null,
-                                  isCompleted: status === "completed",
-                                  isRecommendedNext: status === "recommendedNext",
-                                  todayKey
-                                })}
+                              <span className={styles.dayLabel}>
+                                ~{workout.estimatedDurationMinutes.min}–
+                                {workout.estimatedDurationMinutes.max} min
                               </span>
                             </span>
-                            <StatusBadge status={status} />
-                          </Link>
-                        </li>
-                      );
-                    })
-                  : null}
-              </Fragment>
+                            <span className={styles.muscleLine}>
+                              {scheduleStatusCopy({
+                                preferredWeekday: workout.preferredWeekday,
+                                plannedDateKey: planned,
+                                actualDateKey: null,
+                                isCompleted: status === "completed",
+                                isRecommendedNext: status === "recommendedNext",
+                                todayKey
+                              })}
+                            </span>
+                          </span>
+                          <StatusBadge status={status} />
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             );
           })}
-        </ul>
+        </div>
+
+        <p className={styles.swipeHint}>Swipe to change week</p>
+      </section>
+
+      {/* Optional planning aid, not a gate — kept out of the primary flow. */}
+      <section className={styles.scheduleBox} aria-label="Program start date">
+        <button
+          type="button"
+          className={styles.scheduleToggle}
+          aria-expanded={scheduleOpen}
+          onClick={() => setScheduleOpen((v) => !v)}
+        >
+          <span className={styles.sectionLabel}>Week 1 Upper A date</span>
+          <span className={styles.scheduleState}>
+            {schedule.startDateKey ? schedule.startDateKey : "Not set"}
+            <span className={styles.disclosureIcon}>{scheduleOpen ? "▾" : "▸"}</span>
+          </span>
+        </button>
+        {scheduleOpen ? (
+          <>
+            <p className={styles.scheduleHint}>
+              Optional. Sets planned dates from Workout 1. Preferred pattern stays Tue / Wed / Fri /
+              Sun — choosing another weekday does not change your date. Dates never lock a workout
+              or change Recommended Next.
+            </p>
+            <div className={styles.scheduleRow}>
+              <input
+                type="date"
+                className={styles.dateInput}
+                value={startDraft}
+                onChange={(e) => setStartDraft(e.target.value)}
+                aria-label="Week 1 Upper A date"
+              />
+              <button type="button" className={styles.scheduleBtn} onClick={saveStartDate}>
+                Save
+              </button>
+              {schedule.startDateKey ? (
+                <button type="button" className={styles.scheduleBtnGhost} onClick={clearStartDate}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
+          </>
+        ) : null}
       </section>
     </div>
   );

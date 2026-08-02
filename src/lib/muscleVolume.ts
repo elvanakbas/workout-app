@@ -1,22 +1,29 @@
 import type { MuscleGroup, Workout } from "../types";
 
 /**
- * V3 mandatory direct-set weekly targets (normal weeks).
+ * V3 mandatory direct-set weekly targets (normal weeks), identical for Block 1
+ * and Block 2 — accessory rotation changes movements, never set counts.
+ *
+ * Minimums are aligned to published minimum-effective-volume guidance for
+ * hypertrophy (roughly 6–10 direct weekly sets depending on muscle) rather than
+ * to the session-length budget alone. Glutes and quads sit above their minimum
+ * because the Primary Lifts already load them heavily.
+ *
  * Optional add-on volume is excluded and reported separately.
  */
 export const WEEKLY_MUSCLE_TARGETS: Record<
   MuscleGroup,
   { min: number; max: number; label: string }
 > = {
-  chest: { min: 7, max: 8, label: "Chest" },
-  back: { min: 11, max: 12, label: "Back" },
-  shoulders: { min: 8, max: 10, label: "Shoulders" },
-  biceps: { min: 5, max: 6, label: "Biceps" },
-  triceps: { min: 5, max: 6, label: "Triceps" },
+  chest: { min: 9, max: 10, label: "Chest" },
+  back: { min: 12, max: 13, label: "Back" },
+  shoulders: { min: 9, max: 10, label: "Shoulders" },
+  biceps: { min: 6, max: 7, label: "Biceps" },
+  triceps: { min: 6, max: 7, label: "Triceps" },
   quadriceps: { min: 10, max: 10, label: "Quadriceps" },
   hamstrings: { min: 8, max: 8, label: "Hamstrings" },
-  glutes: { min: 8, max: 10, label: "Glutes" },
-  calves: { min: 6, max: 6, label: "Calves" },
+  glutes: { min: 7, max: 8, label: "Glutes" },
+  calves: { min: 8, max: 8, label: "Calves" },
   core: { min: 4, max: 6, label: "Core" }
 };
 

@@ -25,32 +25,42 @@ function roleClass(role: ExerciseRole): string {
   return styles.roleAccessory;
 }
 
+/**
+ * Compact, scannable row: a small visual, the name, and the numbers that decide
+ * what you actually do. A full-width image per exercise made a six-movement
+ * workout several screens long and impossible to read at a glance.
+ */
 function ExerciseRow({
   exercise,
-  emphasize,
   lastPerformance
 }: {
   exercise: Exercise;
-  emphasize?: boolean;
   lastPerformance?: string | null;
 }) {
   return (
-    <li className={`${styles.exercise} ${emphasize ? styles.exercisePrimary : ""}`}>
-      <ExerciseVisual visualAssetKey={exercise.visualAssetKey} variant="detail" />
-      <div className={styles.exerciseHeader}>
-        <span className={styles.exerciseName}>{exercise.name}</span>
-        <span className={`${styles.roleBadge} ${roleClass(exercise.role)}`}>
-          {roleDisplayLabel(exercise.role)}
+    <li className={styles.row}>
+      <ExerciseVisual visualAssetKey={exercise.visualAssetKey} variant="thumb" />
+      <div className={styles.rowBody}>
+        <div className={styles.rowHead}>
+          <span className={styles.rowName}>{exercise.name}</span>
+          <span className={`${styles.roleBadge} ${roleClass(exercise.role)}`}>
+            {roleDisplayLabel(exercise.role)}
+          </span>
+        </div>
+        <span className={styles.rowMeta}>
+          <strong>
+            {exercise.targetSets} × {exercise.targetReps}
+          </strong>
+          {exercise.restSeconds ? ` · rest ${exercise.restSeconds}s` : ""}
         </span>
+        {lastPerformance ? <span className={styles.lastPerf}>Last: {lastPerformance}</span> : null}
+        {exercise.safetyNote ? (
+          <p className={styles.safetyNote}>
+            <span className={styles.safetyLabel}>Safety</span>
+            {exercise.safetyNote}
+          </p>
+        ) : null}
       </div>
-      <span className={styles.exerciseMeta}>
-        {exercise.targetSets} sets × {exercise.targetReps}
-        {exercise.restSeconds ? ` · rest ${exercise.restSeconds}s` : ""}
-      </span>
-      {lastPerformance ? (
-        <span className={styles.lastPerf}>Last time: {lastPerformance}</span>
-      ) : null}
-      {exercise.safetyNote ? <p className={styles.safetyNote}>Safety: {exercise.safetyNote}</p> : null}
     </li>
   );
 }
@@ -101,57 +111,90 @@ export default function WorkoutDetailScreen() {
     primary != null
       ? (() => {
           const w = getLastWeightForExercise(logs, primary.id);
-          return w != null ? `${w} kg (prior session)` : null;
+          return w != null ? `${w} kg` : null;
         })()
       : null;
 
   const hasAddOns = (workout.optionalCore?.length ?? 0) > 0 || !!workout.cardio;
+  const scheduleLine = scheduleStatusCopy({
+    preferredWeekday: workout.preferredWeekday,
+    plannedDateKey: planned,
+    isCompleted: completedOrders.has(workout.order),
+    isRecommendedNext: status === "recommendedNext",
+    todayKey: todayLocalDateKey()
+  });
 
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
         <Link to="/" className={styles.back}>
-          &larr; Program
+          ← Program
         </Link>
-        <p className={styles.identityKicker}>
-          {IDENTITY_DISPLAY_LABEL[workout.identity]} · {workout.variantLabel}
+        <p className={styles.kicker}>
+          {IDENTITY_DISPLAY_LABEL[workout.identity]} · {workout.variantLabel} · Week {workout.week}
         </p>
         <h1 className={styles.title}>{workout.title}</h1>
-        <div className={styles.metaRow}>
+        <p className={styles.focus}>{workout.focus}</p>
+
+        <div className={styles.badgeRow}>
           <span className={workout.length === "short" ? styles.tagWorkday : styles.tagOffDay}>
             {workout.length === "short" ? "Workday" : "Off day"}
           </span>
-          <span className={styles.metaText}>
+          <span className={styles.tagNeutral}>
             {PREFERRED_WEEKDAY_LABEL[workout.preferredWeekday]}
-          </span>
-          <span className={styles.metaText}>
-            ~{workout.estimatedDurationMinutes.min}–{workout.estimatedDurationMinutes.max} min main
           </span>
           {status ? <StatusBadge status={status} /> : null}
         </div>
-        <p className={styles.focus}>{workout.focus}</p>
-        <p className={styles.metaText}>
-          {scheduleStatusCopy({
-            preferredWeekday: workout.preferredWeekday,
-            plannedDateKey: planned,
-            isCompleted: completedOrders.has(workout.order),
-            isRecommendedNext: status === "recommendedNext",
-            todayKey: todayLocalDateKey()
-          })}
+
+        <dl className={styles.stats}>
+          <div className={styles.stat}>
+            <dt>Exercises</dt>
+            <dd>{mandatory.length}</dd>
+          </div>
+          <div className={styles.stat}>
+            <dt>Sets</dt>
+            <dd>{mandatorySets}</dd>
+          </div>
+          <div className={styles.stat}>
+            <dt>Duration</dt>
+            <dd>
+              {workout.estimatedDurationMinutes.min}–{workout.estimatedDurationMinutes.max}
+              <span className={styles.statUnit}>min</span>
+            </dd>
+          </div>
+          <div className={styles.stat}>
+            <dt>Block</dt>
+            <dd>{workout.trainingBlock}</dd>
+          </div>
+        </dl>
+
+        <p className={styles.scheduleLine}>
+          {scheduleLine}
           {planned ? ` · ${formatLocalDateKeyLabel(planned)}` : ""}
         </p>
-        <p className={styles.metaText}>
-          Week {workout.week} · {workout.phaseLabel} · {mandatory.length} exercises · {mandatorySets}{" "}
-          mandatory sets
+        <p className={styles.guidance}>
+          <span className={styles.phaseTag}>{workout.phaseLabel}</span>
+          {workout.intensityGuidance}
         </p>
-        <p className={styles.guidance}>{workout.intensityGuidance}</p>
-        <p className={styles.focus}>{muscleLine}</p>
+        <p className={styles.muscleLine}>{muscleLine}</p>
       </header>
 
       {primary ? (
-        <section className={styles.primaryCallout}>
-          <h2 className={styles.sectionTitle}>Primary Lift</h2>
-          <ExerciseRow exercise={primary} emphasize lastPerformance={lastPrimary} />
+        <section className={styles.primaryCard}>
+          <span className={styles.primaryKicker}>Primary Lift</span>
+          <ExerciseVisual visualAssetKey={primary.visualAssetKey} variant="detail" />
+          <h2 className={styles.primaryName}>{primary.name}</h2>
+          <p className={styles.primaryTarget}>
+            {primary.targetSets} × {primary.targetReps}
+            {primary.restSeconds ? ` · rest ${primary.restSeconds}s` : ""}
+            {lastPrimary ? ` · last ${lastPrimary}` : ""}
+          </p>
+          {primary.safetyNote ? (
+            <p className={styles.safetyNote}>
+              <span className={styles.safetyLabel}>Safety</span>
+              {primary.safetyNote}
+            </p>
+          ) : null}
         </section>
       ) : null}
 
@@ -160,9 +203,11 @@ export default function WorkoutDetailScreen() {
         <ul className={styles.warmupList}>
           {workout.warmup.map((item) => (
             <li key={item.id} className={styles.warmupItem}>
-              <ExerciseVisual visualAssetKey={item.visualAssetKey} variant="detail" />
-              <span className={styles.warmupName}>{item.name}</span>
-              <span className={styles.warmupDuration}>{item.duration}</span>
+              <ExerciseVisual visualAssetKey={item.visualAssetKey} variant="thumb" />
+              <div className={styles.rowBody}>
+                <span className={styles.rowName}>{item.name}</span>
+                <span className={styles.rowMeta}>{item.duration}</span>
+              </div>
             </li>
           ))}
         </ul>
@@ -172,8 +217,13 @@ export default function WorkoutDetailScreen() {
         <h2 className={styles.sectionTitle}>Main workout</h2>
         {groupByRole(mandatory.filter((e) => e.role !== "primary")).map(({ role, items }) => (
           <div key={role} className={styles.roleGroup}>
-            <h3 className={styles.roleGroupTitle}>{roleDisplayLabel(role)}</h3>
-            <ul className={styles.exerciseList}>
+            <h3 className={styles.roleGroupTitle}>
+              {roleDisplayLabel(role)}
+              <span className={styles.roleGroupCount}>
+                {items.reduce((n, e) => n + e.targetSets, 0)} sets
+              </span>
+            </h3>
+            <ul className={styles.rowList}>
               {items.map((exercise) => (
                 <ExerciseRow key={exercise.id} exercise={exercise} />
               ))}
@@ -183,15 +233,13 @@ export default function WorkoutDetailScreen() {
       </section>
 
       {hasAddOns ? (
-        <section className={styles.addons}>
+        <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Optional add-ons</h2>
-          <p className={styles.addonHint}>
-            Not required to finish the workout. Skipping is fine.
-          </p>
+          <p className={styles.addonHint}>Not required to finish the workout. Skipping is fine.</p>
           {workout.optionalCore && workout.optionalCore.length > 0 ? (
             <div className={styles.addonCard}>
               <h3 className={styles.addonTitle}>Add 10 min Core</h3>
-              <ul className={styles.exerciseList}>
+              <ul className={styles.rowList}>
                 {workout.optionalCore.map((exercise) => (
                   <ExerciseRow key={exercise.id} exercise={exercise} />
                 ))}
@@ -200,27 +248,31 @@ export default function WorkoutDetailScreen() {
           ) : null}
           {workout.cardio ? (
             <div className={styles.addonCard}>
-              <h3 className={styles.addonTitle}>
-                Add {workout.cardio.durationMinutes} min Cardio
-              </h3>
-              <div className={styles.cardioBlock}>
-                <ExerciseVisual visualAssetKey={workout.cardio.visualAssetKey} variant="detail" />
-                <span className={styles.exerciseName}>
-                  {cardioLabel(workout.cardio.machine)}
-                  {workout.cardio.alternateMachine
-                    ? ` or ${cardioLabel(workout.cardio.alternateMachine)}`
-                    : ""}
-                </span>
-                <span className={styles.exerciseMeta}>{workout.cardio.intensity}</span>
-              </div>
+              <h3 className={styles.addonTitle}>Add {workout.cardio.durationMinutes} min Cardio</h3>
+              <ul className={styles.rowList}>
+                <li className={styles.row}>
+                  <ExerciseVisual visualAssetKey={workout.cardio.visualAssetKey} variant="thumb" />
+                  <div className={styles.rowBody}>
+                    <span className={styles.rowName}>
+                      {cardioLabel(workout.cardio.machine)}
+                      {workout.cardio.alternateMachine
+                        ? ` or ${cardioLabel(workout.cardio.alternateMachine)}`
+                        : ""}
+                    </span>
+                    <span className={styles.rowMeta}>{workout.cardio.intensity}</span>
+                  </div>
+                </li>
+              </ul>
             </div>
           ) : null}
         </section>
       ) : null}
 
-      <Link to={`/workout/${workout.id}/session`} className={styles.startButton}>
-        Start Workout
-      </Link>
+      <div className={styles.startBar}>
+        <Link to={`/workout/${workout.id}/session`} className={styles.startButton}>
+          Start Workout
+        </Link>
+      </div>
     </div>
   );
 }

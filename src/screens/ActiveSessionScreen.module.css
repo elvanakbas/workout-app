@@ -1,230 +1,480 @@
 .screen {
-  padding: var(--space-4);
   max-width: 640px;
   margin: 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
+  padding-bottom: var(--space-5);
 }
 
-.header {
+.loading {
+  padding: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+/* ---- Sticky session header: progress + pager + rest timer ---- */
+
+.stickyTop {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.back {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.backLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.counter {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.progressTrack {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-success);
+  transition: width 0.25s ease;
+}
+
+.pager {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* Bleed to the screen edges so the strip reads as scrollable. */
+  margin: 0 calc(-1 * var(--space-4));
+  padding: var(--space-1) var(--space-4);
+}
+
+.pager::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.chipIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.chipDone {
+  color: var(--color-success);
+  border-color: rgba(61, 220, 151, 0.4);
+}
+
+.chipDone .chipIndex {
+  background: var(--color-success-dim);
+  color: var(--color-success);
+}
+
+.chipActive {
+  color: var(--color-accent-text);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.chipActive .chipIndex {
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--color-accent-text);
+}
+
+/* ---- Focused exercise ---- */
+
+.focus {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.focusDone {
+  border-color: rgba(61, 220, 151, 0.4);
+}
+
+.swipeHint {
+  margin-top: calc(-1 * var(--space-1));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--color-text-muted);
+  opacity: 0.65;
+}
+
+.focusHead {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.back {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.title {
-  font-size: 22px;
+.position {
+  font-size: 11px;
   font-weight: 700;
-}
-
-.lowEnergyToggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-.lowEnergyLabel {
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.lowEnergyHint {
-  margin-top: var(--space-1);
-  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--color-text-muted);
-  max-width: 220px;
 }
 
-.toggleOn,
-.toggleOff {
-  min-height: var(--tap-target);
-  min-width: 64px;
+.exerciseName {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.roleChip,
+.sideChip,
+.restChip {
+  padding: 3px var(--space-2);
   border-radius: 999px;
-  border: 1px solid var(--color-border);
+  font-size: 11px;
   font-weight: 700;
-  font-size: 14px;
-  flex-shrink: 0;
 }
 
-.toggleOn {
-  background: var(--color-accent);
-  color: var(--color-accent-text);
-  border-color: var(--color-accent);
+.roleChip {
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
 }
 
-.toggleOff {
+.sideChip,
+.restChip {
   background: var(--color-surface-raised);
   color: var(--color-text-muted);
 }
 
-.exerciseList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.exercise,
-.cardioSection,
-.feedbackSection {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-.exerciseName {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.draftHint {
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.exerciseHeaderRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.completedBadge {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-accent-text);
-  background: var(--color-accent);
-  padding: 4px 8px;
-  border-radius: var(--radius);
-  flex-shrink: 0;
-}
-
-.roleChip {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 2px 8px;
-  margin-left: auto;
-}
-
-.exerciseCompleted {
-  border-color: var(--color-accent);
-  opacity: 0.78;
-}
-
-.completedNote {
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.completedSummary {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.exerciseMeta {
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.perSideLabel {
+.target {
+  font-size: 15px;
   font-weight: 700;
   color: var(--color-text);
 }
 
 .lastWeight {
   font-size: 13px;
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.setsGridWeight {
-  display: grid;
-  grid-template-columns: 32px 1fr 1.4fr;
-  gap: var(--space-2);
-  align-items: center;
-  margin-top: var(--space-2);
-}
-
-.setsGridRepsOnly,
-.setsGridDuration {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: var(--space-2);
-  align-items: center;
-  margin-top: var(--space-2);
-}
-
-.setsGridLabel {
-  font-size: 12px;
   color: var(--color-text-muted);
-  font-weight: 600;
+}
+
+.lastWeight strong {
+  color: var(--color-text);
+}
+
+/* ---- Set rows ---- */
+
+.setList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.setRow {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) var(--tap-target);
+  align-items: end;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.setRowLogged {
+  border-color: rgba(61, 220, 151, 0.35);
+  background: var(--color-success-dim);
 }
 
 .setNumber {
-  font-size: 14px;
-  font-weight: 600;
+  padding-bottom: var(--space-3);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-text-muted);
   text-align: center;
 }
 
-.setInput {
+.setRowLogged .setNumber {
+  color: var(--color-success);
+}
+
+.setFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.restButton {
   min-height: var(--tap-target);
-  padding: var(--space-2) var(--space-3);
+  align-self: end;
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
-  color: var(--color-text);
+  color: var(--color-accent);
+  font-size: 18px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.restButton:active {
+  background: var(--color-accent-dim);
+}
+
+/* ---- Actions ---- */
+
+.primaryButtonWide,
+.primaryButton,
+.secondaryButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: var(--tap-target-lg);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.primaryButtonWide,
+.primaryButton {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.primaryButtonWide {
   width: 100%;
 }
 
-.setInput:disabled {
-  opacity: 0.7;
+.secondaryButton {
+  background: var(--color-surface-raised);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
-.weightInputWrap {
+.buttonSub {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.completedSummary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  background: var(--color-success-dim);
+}
+
+.completedNote {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.completedActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.completedActions > *:only-child {
+  grid-column: 1 / -1;
+}
+
+.safetyNote,
+.note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.safetyLabel {
+  display: inline-block;
+  margin-right: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: rgba(229, 72, 77, 0.16);
+  color: var(--color-danger);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ---- Secondary stack below the focused exercise ---- */
+
+.secondary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0 var(--space-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.cardHint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.toggleRow {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
-.weightUnit {
-  font-size: 12px;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-.completeExerciseButton,
-.reopenButton {
+.switchOn,
+.switchOff {
+  min-width: 64px;
   min-height: var(--tap-target);
-  margin-top: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.switchOn {
+  border: 1px solid transparent;
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.switchOff {
   border: 1px solid var(--color-border);
-  font-weight: 600;
-  font-size: 14px;
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.addonButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.pill,
+.pillOn {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-4);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pill {
+  border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
   color: var(--color-text);
 }
 
-.completeExerciseButton {
-  border-color: var(--color-accent);
+.pillOn {
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent-dim);
   color: var(--color-accent);
 }
 
@@ -232,80 +482,144 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 14px;
   min-height: var(--tap-target);
+  font-size: 13px;
+}
+
+.checkboxRow input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--color-accent);
+}
+
+.disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--tap-target);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.disclosureIcon {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+
+.finishPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
 }
 
 .feedbackField {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  font-size: 14px;
+  gap: var(--space-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.feedbackField input[type="range"] {
+  width: 100%;
+  accent-color: var(--color-accent);
 }
 
 .energyOptions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-2);
 }
 
 .energyOption,
 .energyOptionActive {
-  flex: 1;
   min-height: var(--tap-target);
   border-radius: var(--radius);
-  border: 1px solid var(--color-border);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   text-transform: capitalize;
+  cursor: pointer;
+  touch-action: manipulation;
 }
 
 .energyOption {
+  border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
   color: var(--color-text-muted);
 }
 
 .energyOptionActive {
-  background: var(--color-accent);
-  color: var(--color-accent-text);
-  border-color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
 }
 
 .noteInput {
-  padding: var(--space-3);
+  width: 100%;
+  padding: var(--space-2);
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
-  background: var(--color-surface-raised);
+  background: var(--color-bg);
   color: var(--color-text);
-  resize: vertical;
+  font-family: inherit;
   font-size: 14px;
+  resize: vertical;
 }
 
 .completeButton {
-  min-height: var(--tap-target);
-  padding: var(--space-3) var(--space-4);
+  min-height: var(--tap-target-lg);
   border-radius: var(--radius);
-  border: none;
-  background: var(--color-accent);
-  color: var(--color-accent-text);
-  font-weight: 700;
-  font-size: 16px;
+  border: 1px solid transparent;
+  background: var(--color-success);
+  color: #06231a;
+  font-size: 15px;
+  font-weight: 800;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .completeButton:disabled {
-  opacity: 0.7;
+  opacity: 0.6;
   cursor: default;
 }
 
 .discardButton {
   min-height: var(--tap-target);
-  padding: var(--space-3) var(--space-4);
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
-  background: transparent;
-  color: var(--color-text-muted);
-  font-weight: 600;
-  font-size: 14px;
+  background: none;
+  color: var(--color-danger);
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  margin-bottom: var(--space-4);
+}
+
+.autosaveHint {
+  padding-bottom: var(--space-4);
+  font-size: 11px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 600px) {
+  .setRow {
+    grid-template-columns: 32px minmax(0, 1fr) var(--tap-target);
+  }
+
+  .setFields {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .fieldGroup {
+    flex: 1;
+  }
 }
