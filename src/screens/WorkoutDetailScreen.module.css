@@ -1,11 +1,15 @@
 .screen {
   padding: var(--space-4);
+  padding-bottom: var(--space-6);
   max-width: 640px;
   margin: 0 auto;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
+
+/* ---- Header ---- */
 
 .header {
   display: flex;
@@ -14,36 +18,49 @@
 }
 
 .back {
-  font-size: 14px;
+  align-self: flex-start;
+  min-height: var(--tap-target);
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
   font-weight: 600;
 }
 
-.title {
-  font-size: 22px;
-  font-weight: 700;
+.kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-accent);
 }
 
-.metaRow {
+.title {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.focus {
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.badgeRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  margin-top: var(--space-1);
 }
 
 .tagWorkday,
 .tagOffDay,
-.tagVariant {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-1) var(--space-2);
+.tagNeutral {
+  padding: 4px var(--space-2);
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-}
-
-.tagVariant {
-  background: var(--color-surface-raised);
-  color: var(--color-text);
 }
 
 .tagWorkday {
@@ -52,193 +69,264 @@
 }
 
 .tagOffDay {
-  background: rgba(255, 179, 71, 0.16);
-  color: #ffb347;
-}
-
-.metaText {
-  font-size: 13px;
+  background: rgba(154, 161, 172, 0.16);
   color: var(--color-text-muted);
 }
 
-.focus {
-  font-size: 14px;
-  color: var(--color-text);
+.tagNeutral {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+/* At-a-glance numbers instead of a paragraph of metadata. */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3) var(--space-2);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+  min-width: 0;
+}
+
+.stat dt {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.stat dd {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.statUnit {
+  margin-left: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.scheduleLine,
+.muscleLine {
+  font-size: 12px;
+  color: var(--color-text-muted);
 }
 
 .guidance {
   font-size: 13px;
-  color: var(--color-text-muted);
-  font-style: italic;
+  line-height: 1.55;
+  color: var(--color-text);
 }
 
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.sectionTitle {
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.warmupList,
-.exerciseList {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.warmupItem,
-.exercise,
-.cardioBlock {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-radius: var(--radius);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-.warmupName {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.warmupDuration {
-  font-size: 13px;
-  color: var(--color-text-muted);
-}
-
-.exerciseHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.exerciseName {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.optionalTag {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
+.phaseTag {
+  display: inline-block;
+  margin-right: var(--space-2);
   padding: 2px var(--space-2);
-  flex-shrink: 0;
-}
-
-.exerciseMeta {
-  font-size: 14px;
+  border-radius: 999px;
+  background: var(--color-surface-raised);
   color: var(--color-text-muted);
-}
-
-.safetyNote {
-  margin-top: var(--space-1);
-  font-size: 12px;
-  color: #ffb347;
-}
-
-.startButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--tap-target);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius);
-  background: var(--color-accent);
-  color: var(--color-accent-text);
-  font-weight: 700;
-  font-size: 16px;
-}
-
-.identityKicker {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 800;
   letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---- Primary lift hero ---- */
+
+.primaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-accent);
+  background: var(--color-surface);
+}
+
+.primaryKicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-accent);
 }
 
-.primaryCallout {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.primaryName {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
-.exercisePrimary {
-  border-color: rgba(79, 209, 197, 0.45);
-}
-
-.roleBadge {
-  font-size: 10px;
+.primaryTarget {
+  font-size: 14px;
   font-weight: 700;
-  border-radius: 999px;
-  padding: 2px 8px;
-  flex-shrink: 0;
-}
-
-.rolePrimary {
-  background: rgba(79, 209, 197, 0.2);
-  color: var(--color-accent);
-}
-
-.roleSecondary {
-  background: var(--color-surface-raised);
   color: var(--color-text);
 }
 
-.roleAccessory {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-muted);
+/* ---- Sections ---- */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.roleStability {
-  background: rgba(255, 179, 71, 0.12);
-  color: #ffb347;
-}
-
-.lastPerf {
+.sectionTitle {
   font-size: 12px;
-  color: var(--color-accent);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
 }
 
 .roleGroup {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
 }
 
 .roleGroupTitle {
-  margin: 0;
-  font-size: 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.roleGroupCount {
+  font-size: 11px;
   font-weight: 700;
   color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
-.addons {
+/* ---- Compact exercise rows ---- */
+
+.rowList,
+.warmupList {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius);
-  border: 1px dashed var(--color-border);
+  gap: var(--space-2);
 }
 
-.addonHint {
-  margin: 0;
+.row,
+.warmupItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.rowBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+
+.rowHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rowName {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.rowMeta {
   font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.rowMeta strong {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.lastPerf {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.roleBadge {
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.rolePrimary {
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
+}
+
+.roleSecondary {
+  background: rgba(154, 161, 172, 0.18);
+  color: var(--color-text);
+}
+
+.roleAccessory {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.roleStability {
+  background: rgba(61, 220, 151, 0.14);
+  color: var(--color-success);
+}
+
+.safetyNote {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.safetyLabel {
+  display: inline-block;
+  margin-right: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  background: rgba(229, 72, 77, 0.16);
+  color: var(--color-danger);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ---- Optional add-ons ---- */
+
+.addonHint {
+  font-size: 12px;
   color: var(--color-text-muted);
 }
 
@@ -246,11 +334,33 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--color-border);
 }
 
 .addonTitle {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
 }
 
+/* ---- Start ---- */
+
+.startBar {
+  position: sticky;
+  bottom: 0;
+  padding: var(--space-3) 0 calc(var(--space-2) + var(--safe-bottom));
+  background: linear-gradient(to top, var(--color-bg) 62%, transparent);
+}
+
+.startButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-target-lg);
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font-size: 16px;
+  font-weight: 800;
+}

@@ -12,6 +12,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Machine-local agent permission grants (contains absolute local paths)
+.claude/settings.local.json
+
 # Logs
 npm-debug.log*
 

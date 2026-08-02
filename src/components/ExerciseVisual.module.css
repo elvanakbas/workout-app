@@ -24,32 +24,33 @@
   padding: var(--space-2);
 }
 
-.sessionWrap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-
-.toggle {
-  min-height: var(--tap-target);
-  padding: 0 var(--space-3);
-  border-radius: 999px;
+/* Small square crop used in scannable exercise lists. */
+.thumbImage,
+.thumbPlaceholder {
+  display: block;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
   border: 1px solid var(--color-border);
   background: var(--color-surface-raised);
-  color: var(--color-text-muted);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
 }
 
+.thumbImage {
+  object-fit: cover;
+  /* The illustrated figure sits centre-frame; bias the crop slightly up. */
+  object-position: center 42%;
+}
+
+/* Focused movement during a live session: always visible, never behind a tap. */
 .sessionImage {
   display: block;
   width: 100%;
-  max-width: 280px;
   height: auto;
+  max-height: 34vh;
   aspect-ratio: 4 / 3;
   object-fit: cover;
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
 }
