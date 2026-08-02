@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getAllWorkouts, programSlots } from "../data/program";
 import { getSlotDisplayStatus } from "../lib/progress";
@@ -24,6 +24,7 @@ import {
 import styles from "./HomeScreen.module.css";
 
 const IDENTITY_ORDER: WorkoutIdentity[] = ["push", "quad", "pull", "posterior"];
+const WEEK_NUMBERS = Array.from({ length: 8 }, (_, i) => i + 1);
 
 function weekWorkouts(week: number): Workout[] {
   return getAllWorkouts().filter((w) => w.week === week);
@@ -46,11 +47,9 @@ export default function HomeScreen() {
   const [schedule, setSchedule] = useState(() => getProgramScheduleSettings());
   const [startDraft, setStartDraft] = useState(schedule.startDateKey ?? "");
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [collapsedWeeks, setCollapsedWeeks] = useState<Record<number, boolean>>(() => {
-    const init: Record<number, boolean> = {};
-    for (let w = 1; w <= 8; w++) init[w] = w > 1;
-    return init;
-  });
+  const [activeWeek, setActiveWeek] = useState(1);
+  const weekPagerRef = useRef<HTMLDivElement | null>(null);
+  const weekInitialisedRef = useRef(false);
 
   const todayKey = todayLocalDateKey();
   const allWorkouts = useMemo(() => getAllWorkouts(), []);
@@ -103,6 +102,30 @@ export default function HomeScreen() {
     setStartDraft("");
     notifyLocalMutation();
   };
+
+  const goToWeek = (week: number) => {
+    const pager = weekPagerRef.current;
+    if (!pager) return;
+    pager.scrollTo({ left: (week - 1) * pager.clientWidth, behavior: "smooth" });
+    setActiveWeek(week);
+  };
+
+  /** Scroll position is the source of truth so swiping and the tabs agree. */
+  const handleWeekScroll = () => {
+    const pager = weekPagerRef.current;
+    if (!pager || pager.clientWidth === 0) return;
+    const week = Math.round(pager.scrollLeft / pager.clientWidth) + 1;
+    setActiveWeek(Math.min(8, Math.max(1, week)));
+  };
+
+  // Open on the week you are actually in, without animating on first paint.
+  useEffect(() => {
+    const pager = weekPagerRef.current;
+    if (!pager || weekInitialisedRef.current || pager.clientWidth === 0) return;
+    weekInitialisedRef.current = true;
+    pager.scrollLeft = (currentWeek - 1) * pager.clientWidth;
+    setActiveWeek(currentWeek);
+  }, [currentWeek]);
 
   const todayMatchesNext =
     today.kind === "preferred" &&
@@ -242,87 +265,100 @@ export default function HomeScreen() {
         </div>
       </section>
 
+      {/* Eight stacked collapsible weeks made this screen enormous. One week per
+          swipeable page keeps the whole program one gesture away at a fixed height. */}
       <section className={styles.programList} aria-label="Full program">
-        <h2 className={styles.sectionLabel}>Full program</h2>
-        <ul className={styles.list}>
-          {Array.from({ length: 8 }, (_, i) => i + 1).map((week) => {
-            const collapsed = collapsedWeeks[week] === true;
+        <div className={styles.programHead}>
+          <h2 className={styles.sectionLabel}>Full program</h2>
+          <span className={styles.activeWeekBlock}>{blockLabelForWeek(activeWeek)}</span>
+        </div>
+
+        <div className={styles.weekTabs} role="tablist" aria-label="Program week">
+          {WEEK_NUMBERS.map((week) => (
+            <button
+              key={week}
+              type="button"
+              role="tab"
+              aria-selected={week === activeWeek}
+              aria-controls={`week-page-${week}`}
+              className={week === activeWeek ? styles.weekTabActive : styles.weekTab}
+              onClick={() => goToWeek(week)}
+            >
+              {week}
+            </button>
+          ))}
+        </div>
+
+        <div className={styles.weekPager} ref={weekPagerRef} onScroll={handleWeekScroll}>
+          {WEEK_NUMBERS.map((week) => {
             const slots = programSlots.filter(
               (s) => s.status === "ready" && s.workout.week === week
             );
             return (
-              <Fragment key={week}>
-                <li className={styles.weekHeader}>
-                  <button
-                    type="button"
-                    className={styles.weekToggle}
-                    onClick={() =>
-                      setCollapsedWeeks((prev) => ({ ...prev, [week]: !prev[week] }))
-                    }
-                    aria-expanded={!collapsed}
-                  >
-                    <span className={styles.weekName}>
-                      Week {week}
-                      <span className={styles.weekBlock}>{blockLabelForWeek(week)}</span>
-                    </span>
-                    <span className={styles.weekToggleHint}>{collapsed ? "Show" : "Hide"}</span>
-                  </button>
-                </li>
-                {!collapsed
-                  ? slots.map((slot) => {
-                      if (slot.status !== "ready") return null;
-                      const workout = slot.workout;
-                      const status = getSlotDisplayStatus(
-                        slot,
-                        completedOrders,
-                        recommendedNextOrder
-                      );
-                      const planned = plannedFor(workout);
-                      return (
-                        <li key={slot.order} className={styles.item}>
-                          <Link to={`/workout/${workout.id}`} className={styles.itemLink}>
-                            <span className={styles.order}>{slot.order}</span>
-                            <span className={styles.itemBody}>
-                              <span className={styles.itemTitle}>
-                                {IDENTITY_DISPLAY_LABEL[workout.identity]} · {workout.variantLabel}
+              <div
+                key={week}
+                id={`week-page-${week}`}
+                role="tabpanel"
+                aria-label={`Week ${week}`}
+                className={styles.weekPage}
+              >
+                <ul className={styles.list}>
+                  {slots.map((slot) => {
+                    if (slot.status !== "ready") return null;
+                    const workout = slot.workout;
+                    const status = getSlotDisplayStatus(
+                      slot,
+                      completedOrders,
+                      recommendedNextOrder
+                    );
+                    const planned = plannedFor(workout);
+                    return (
+                      <li key={slot.order} className={styles.item}>
+                        <Link to={`/workout/${workout.id}`} className={styles.itemLink}>
+                          <span className={styles.order}>{slot.order}</span>
+                          <span className={styles.itemBody}>
+                            <span className={styles.itemTitle}>
+                              {IDENTITY_DISPLAY_LABEL[workout.identity]} · {workout.variantLabel}
+                            </span>
+                            <span className={styles.tagRow}>
+                              <span
+                                className={
+                                  workout.length === "short" ? styles.tagWorkday : styles.tagOffDay
+                                }
+                              >
+                                {workout.length === "short" ? "Workday" : "Off day"}
                               </span>
-                              <span className={styles.tagRow}>
-                                <span
-                                  className={
-                                    workout.length === "short" ? styles.tagWorkday : styles.tagOffDay
-                                  }
-                                >
-                                  {workout.length === "short" ? "Workday" : "Off day"}
-                                </span>
-                                <span className={styles.dayLabel}>
-                                  {PREFERRED_WEEKDAY_LABEL[workout.preferredWeekday]}
-                                </span>
-                                <span className={styles.dayLabel}>
-                                  ~{workout.estimatedDurationMinutes.min}–
-                                  {workout.estimatedDurationMinutes.max} min
-                                </span>
+                              <span className={styles.dayLabel}>
+                                {PREFERRED_WEEKDAY_LABEL[workout.preferredWeekday]}
                               </span>
-                              <span className={styles.muscleLine}>
-                                {scheduleStatusCopy({
-                                  preferredWeekday: workout.preferredWeekday,
-                                  plannedDateKey: planned,
-                                  actualDateKey: null,
-                                  isCompleted: status === "completed",
-                                  isRecommendedNext: status === "recommendedNext",
-                                  todayKey
-                                })}
+                              <span className={styles.dayLabel}>
+                                ~{workout.estimatedDurationMinutes.min}–
+                                {workout.estimatedDurationMinutes.max} min
                               </span>
                             </span>
-                            <StatusBadge status={status} />
-                          </Link>
-                        </li>
-                      );
-                    })
-                  : null}
-              </Fragment>
+                            <span className={styles.muscleLine}>
+                              {scheduleStatusCopy({
+                                preferredWeekday: workout.preferredWeekday,
+                                plannedDateKey: planned,
+                                actualDateKey: null,
+                                isCompleted: status === "completed",
+                                isRecommendedNext: status === "recommendedNext",
+                                todayKey
+                              })}
+                            </span>
+                          </span>
+                          <StatusBadge status={status} />
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             );
           })}
-        </ul>
+        </div>
+
+        <p className={styles.swipeHint}>Swipe to change week</p>
       </section>
 
       {/* Optional planning aid, not a gate — kept out of the primary flow. */}

@@ -43,14 +43,37 @@ export default function HistoryScreen() {
     setExportNote(ok ? "History JSON downloaded." : "Export failed. Try again.");
   };
 
+  const totalSets = sorted.reduce(
+    (sum, log) => sum + log.entries.reduce((n, entry) => n + entry.sets.length, 0),
+    0
+  );
+
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <h1 className={styles.title}>History</h1>
-        <button type="button" className={styles.exportButton} onClick={onExport}>
-          Export History JSON
-        </button>
-        {exportNote ? <p className={styles.exportNote}>{exportNote}</p> : null}
+        <div className={styles.headerTop}>
+          <div>
+            <p className={styles.kicker}>Completed sessions</p>
+            <h1 className={styles.title}>History</h1>
+          </div>
+          <span className={styles.count}>{sorted.length}</span>
+        </div>
+        {sorted.length > 0 ? (
+          <dl className={styles.stats}>
+            <div className={styles.stat}>
+              <dt>Workouts</dt>
+              <dd>{sorted.length}</dd>
+            </div>
+            <div className={styles.stat}>
+              <dt>Sets logged</dt>
+              <dd>{totalSets}</dd>
+            </div>
+            <div className={styles.stat}>
+              <dt>Latest</dt>
+              <dd className={styles.statSmall}>{formatDate(sorted[0].completedAt)}</dd>
+            </div>
+          </dl>
+        ) : null}
       </header>
 
       {sorted.length === 0 ? (
@@ -65,17 +88,29 @@ export default function HistoryScreen() {
                   <span className={styles.itemDate}>{formatDate(log.completedAt)}</span>
                 </div>
                 <span className={styles.itemSummary}>{summarize(log)}</span>
-                {feedbackSummary(log) ? (
-                  <span className={styles.itemFeedback}>{feedbackSummary(log)}</span>
-                ) : null}
-                {log.lowEnergyMode ? (
-                  <span className={styles.itemFeedback}>Low-energy mode</span>
-                ) : null}
+                <div className={styles.chipRow}>
+                  {feedbackSummary(log) ? (
+                    <span className={styles.chip}>{feedbackSummary(log)}</span>
+                  ) : null}
+                  {log.lowEnergyMode ? (
+                    <span className={styles.chipMuted}>Low-energy mode</span>
+                  ) : null}
+                </div>
+                <span className={styles.chevron} aria-hidden="true">
+                  ›
+                </span>
               </Link>
             </li>
           ))}
         </ul>
       )}
+
+      <div className={styles.exportRow}>
+        <button type="button" className={styles.exportButton} onClick={onExport}>
+          Export History JSON
+        </button>
+        {exportNote ? <p className={styles.exportNote}>{exportNote}</p> : null}
+      </div>
     </div>
   );
 }

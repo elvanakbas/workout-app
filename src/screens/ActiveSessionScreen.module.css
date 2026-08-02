@@ -155,6 +155,16 @@
   border-color: rgba(61, 220, 151, 0.4);
 }
 
+.swipeHint {
+  margin-top: calc(-1 * var(--space-1));
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--color-text-muted);
+  opacity: 0.65;
+}
+
 .focusHead {
   display: flex;
   flex-direction: column;

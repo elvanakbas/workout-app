@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getMandatoryExercises, getWorkoutById } from "../data/program";
 import { getLastWeightForExercise } from "../lib/history";
@@ -485,6 +485,14 @@ export default function ActiveSessionScreen() {
           onNext={
             focusIndex < total - 1 ? () => setFocusIndex((prev) => prev + 1) : undefined
           }
+          onSwipePrev={
+            focusIndex > 0 ? () => setFocusIndex((prev) => Math.max(0, prev - 1)) : undefined
+          }
+          onSwipeNext={
+            focusIndex < total - 1
+              ? () => setFocusIndex((prev) => Math.min(total - 1, prev + 1))
+              : undefined
+          }
         />
       ) : (
         <p className={styles.loading}>No exercises to log.</p>
@@ -689,7 +697,13 @@ interface FocusedExerciseProps {
   onComplete: () => void;
   onReopen: () => void;
   onNext?: () => void;
+  onSwipePrev?: () => void;
+  onSwipeNext?: () => void;
 }
+
+const SWIPE_MIN_DISTANCE_PX = 60;
+/** A swipe must be clearly horizontal, or scrolling the page would change exercise. */
+const SWIPE_HORIZONTAL_RATIO = 1.8;
 
 /**
  * The one exercise the user is actually doing right now, at full size.
@@ -708,8 +722,37 @@ function FocusedExercise({
   onStartRest,
   onComplete,
   onReopen,
-  onNext
+  onNext,
+  onSwipePrev,
+  onSwipeNext
 }: FocusedExerciseProps) {
+  const swipeStartRef = useRef<{ x: number; y: number; onControl: boolean } | null>(null);
+
+  const handleTouchStart = (event: TouchEvent<HTMLElement>) => {
+    const touch = event.touches[0];
+    if (!touch) return;
+    // Starting on a stepper, slider or checkbox means the user is adjusting a
+    // value, not navigating — never steal that gesture.
+    const onControl = !!(event.target as HTMLElement).closest(
+      "input, textarea, select, button, a"
+    );
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY, onControl };
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLElement>) => {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start || start.onControl) return;
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < SWIPE_MIN_DISTANCE_PX) return;
+    if (Math.abs(dx) < Math.abs(dy) * SWIPE_HORIZONTAL_RATIO) return;
+    if (dx < 0) onSwipeNext?.();
+    else onSwipePrev?.();
+  };
+
   const fields = measurementFieldsFor(exercise.measurementType);
   const isCompleted = entry?.completed === true;
   const sideLabel = unilateralLabel(exercise);
@@ -717,8 +760,15 @@ function FocusedExercise({
   const loggedSets = displaySets.filter(setHasValues).length;
 
   return (
-    <section className={isCompleted ? `${styles.focus} ${styles.focusDone}` : styles.focus}>
+    <section
+      className={isCompleted ? `${styles.focus} ${styles.focusDone}` : styles.focus}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
       <ExerciseVisual visualAssetKey={exercise.visualAssetKey} variant="session" eager />
+      {onSwipePrev || onSwipeNext ? (
+        <p className={styles.swipeHint}>← swipe to change exercise →</p>
+      ) : null}
 
       <div className={styles.focusHead}>
         <span className={styles.position}>{position}</span>
