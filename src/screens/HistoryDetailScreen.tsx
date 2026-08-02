@@ -75,6 +75,41 @@ function renderSetRow(entry: ExerciseLog, set: SetLog): string {
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
+function statusClass(status: ReturnType<typeof resolveExerciseStatus>): string {
+  if (status === "completed") return styles.statusDone;
+  if (status === "skipped") return styles.statusSkipped;
+  if (status === "incomplete") return styles.statusIncomplete;
+  return styles.statusNeutral;
+}
+
+function capitalize(value: string): string {
+  return value.length === 0 ? value : value[0].toUpperCase() + value.slice(1);
+}
+
+/** Compact label/value pair used across the summary blocks. */
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={styles.stat}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * Signed change against the previous session. `amount` only drives colour —
+ * pass 0 to stay neutral where up/down is not inherently better or worse.
+ */
+function Delta({ label, amount, text }: { label: string; amount: number; text: string }) {
+  const tone = amount > 0 ? styles.deltaUp : amount < 0 ? styles.deltaDown : styles.deltaFlat;
+  return (
+    <div className={`${styles.delta} ${tone}`}>
+      <span className={styles.deltaLabel}>{label}</span>
+      <span className={styles.deltaValue}>{text}</span>
+    </div>
+  );
+}
+
 function ExerciseBlock({ entry }: { entry: ExerciseLog }) {
   const status = resolveExerciseStatus(entry);
   const name = entry.name?.trim() || `Exercise (${entry.exerciseId})`;
@@ -90,7 +125,7 @@ function ExerciseBlock({ entry }: { entry: ExerciseLog }) {
     <section className={styles.exercise}>
       <div className={styles.exerciseHeader}>
         <h3 className={styles.exerciseName}>{name}</h3>
-        <span className={styles.status}>{statusLabel(status)}</span>
+        <span className={`${styles.status} ${statusClass(status)}`}>{statusLabel(status)}</span>
       </div>
       {planned ? <p className={styles.meta}>{planned}</p> : null}
       {side && !planned ? <p className={styles.meta}>{side}</p> : null}
@@ -98,8 +133,8 @@ function ExerciseBlock({ entry }: { entry: ExerciseLog }) {
         <ol className={styles.setList}>
           {entry.sets.map((set, index) => (
             <li key={index} className={styles.setRow}>
-              <span className={styles.setIndex}>Set {index + 1}</span>
-              <span>{renderSetRow(entry, set)}</span>
+              <span className={styles.setIndex}>{index + 1}</span>
+              <span className={styles.setValue}>{renderSetRow(entry, set)}</span>
             </li>
           ))}
         </ol>
@@ -107,7 +142,7 @@ function ExerciseBlock({ entry }: { entry: ExerciseLog }) {
       {status === "skipped" ? (
         <p className={styles.meta}>Hidden by Low-Energy Mode for this session.</p>
       ) : null}
-      {volume > 0 ? <p className={styles.meta}>Volume: {volume} kg</p> : null}
+      {volume > 0 ? <p className={styles.volume}>Volume {volume} kg</p> : null}
     </section>
   );
 }
@@ -139,8 +174,8 @@ function DetailBody({ log, logs }: { log: WorkoutLog; logs: WorkoutLog[] }) {
         <h1 className={styles.title}>{log.workoutTitle}</h1>
         <p className={styles.subtitle}>{formatDateTime(log.completedAt)}</p>
         <div className={styles.chips}>
-          <span className={styles.chip}>Workout {log.order}</span>
-          <span className={styles.chip}>{log.workoutId}</span>
+          <span className={styles.chipStrong}>Workout {log.order}</span>
+          <span className={styles.chipId}>{log.workoutId}</span>
           {log.variantLabel ? <span className={styles.chip}>{log.variantLabel}</span> : null}
           {focusLabel ? <span className={styles.chip}>{focusLabel}</span> : null}
           {dayLabel ? <span className={styles.chip}>{dayLabel}</span> : null}
@@ -187,39 +222,50 @@ function DetailBody({ log, logs }: { log: WorkoutLog; logs: WorkoutLog[] }) {
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Summary</h2>
-        <ul className={styles.summaryList}>
-          <li>
-            Exercises completed: {completedCount}
-            {log.entries.length > 0 ? ` / ${log.entries.length}` : ""}
-          </li>
-          {skippedIncomplete > 0 ? <li>Skipped / incomplete: {skippedIncomplete}</li> : null}
-          <li>Working sets logged: {workingSets}</li>
+        <dl className={styles.stats}>
+          <Stat
+            label="Exercises"
+            value={`${completedCount}${log.entries.length > 0 ? ` / ${log.entries.length}` : ""}`}
+          />
+          <Stat label="Working sets" value={String(workingSets)} />
+          <Stat label="Volume" value={volume > 0 ? `${volume} kg` : "n/a"} />
           {typeof log.durationSeconds === "number" ? (
-            <li>Session duration: {formatDuration(log.durationSeconds)}</li>
+            <Stat label="Duration" value={formatDuration(log.durationSeconds)} />
           ) : null}
-          <li>Total volume (reps × kg): {volume > 0 ? `${volume} kg` : "n/a"}</li>
-        </ul>
+        </dl>
+        {skippedIncomplete > 0 ? (
+          <p className={styles.meta}>Skipped / incomplete: {skippedIncomplete}</p>
+        ) : null}
       </section>
 
       {comparison ? (
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Previous session</h2>
+          <h2 className={styles.sectionTitle}>Vs previous session</h2>
+          <div className={styles.deltaRow}>
+            <Delta
+              label="Volume"
+              amount={comparison.volumeDelta}
+              text={formatSignedDelta(comparison.volumeDelta, " kg")}
+            />
+            <Delta
+              label="Working sets"
+              amount={comparison.completedSetsDelta}
+              text={formatSignedDelta(comparison.completedSetsDelta)}
+            />
+            {typeof comparison.durationDeltaSeconds === "number" ? (
+              <Delta
+                label="Duration"
+                amount={0}
+                text={`${formatDuration(Math.abs(comparison.durationDeltaSeconds))} ${
+                  comparison.durationDeltaSeconds >= 0 ? "longer" : "shorter"
+                }`}
+              />
+            ) : null}
+          </div>
           <p className={styles.meta}>
             Compared to {comparison.previous.workoutTitle} (
             {formatDateTime(comparison.previous.completedAt)})
           </p>
-          <ul className={styles.summaryList}>
-            <li>Volume: {formatSignedDelta(comparison.volumeDelta, " kg")}</li>
-            <li>Working sets: {formatSignedDelta(comparison.completedSetsDelta)}</li>
-            {typeof comparison.durationDeltaSeconds === "number" ? (
-              <li>
-                Duration:{" "}
-                {formatSignedDelta(comparison.durationDeltaSeconds, "s")} (
-                {formatDuration(Math.abs(comparison.durationDeltaSeconds))}
-                {comparison.durationDeltaSeconds >= 0 ? " longer" : " shorter"})
-              </li>
-            ) : null}
-          </ul>
         </section>
       ) : null}
 
@@ -244,22 +290,27 @@ function DetailBody({ log, logs }: { log: WorkoutLog; logs: WorkoutLog[] }) {
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Cardio</h2>
           {cardio ? (
-            <ul className={styles.summaryList}>
-              <li>
+            <>
+              <p className={styles.cardioMachine}>
                 {cardioMachineLabel(cardio.machine)}
                 {cardio.alternateMachine
                   ? ` or ${cardioMachineLabel(cardio.alternateMachine)}`
                   : ""}
-              </li>
-              <li>Planned: {cardio.plannedMinutes} min</li>
-              {typeof cardio.actualMinutes === "number" ? (
-                <li>Actual: {cardio.actualMinutes} min</li>
-              ) : (
-                <li>Actual minutes: not recorded</li>
-              )}
-              <li>Status: {cardio.completed ? "Completed" : "Not completed"}</li>
-              {cardio.intensity ? <li>{cardio.intensity}</li> : null}
-            </ul>
+              </p>
+              <dl className={styles.stats}>
+                <Stat label="Planned" value={`${cardio.plannedMinutes} min`} />
+                <Stat
+                  label="Actual"
+                  value={
+                    typeof cardio.actualMinutes === "number"
+                      ? `${cardio.actualMinutes} min`
+                      : "not recorded"
+                  }
+                />
+                <Stat label="Status" value={cardio.completed ? "Completed" : "Not completed"} />
+              </dl>
+              {cardio.intensity ? <p className={styles.meta}>{cardio.intensity}</p> : null}
+            </>
           ) : (
             <p className={styles.meta}>
               Cardio block: {cardioDone ? "Completed" : "Not completed"}
@@ -271,14 +322,14 @@ function DetailBody({ log, logs }: { log: WorkoutLog; logs: WorkoutLog[] }) {
       {log.feedback ? (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>How it felt</h2>
-          <ul className={styles.summaryList}>
-            <li>Difficulty: {log.feedback.difficulty}/10</li>
-            <li>Energy: {log.feedback.energy}</li>
-            <li>Lower-back pain: {log.feedback.lowerBackPain}/10</li>
-            <li>Knee pain: {log.feedback.kneePain}/10</li>
-            <li>Shoulder pain: {log.feedback.shoulderPain}/10</li>
-            {log.feedback.note ? <li>Note: {log.feedback.note}</li> : null}
-          </ul>
+          <dl className={styles.stats}>
+            <Stat label="Difficulty" value={`${log.feedback.difficulty}/10`} />
+            <Stat label="Energy" value={capitalize(log.feedback.energy)} />
+            <Stat label="Lower back" value={`${log.feedback.lowerBackPain}/10`} />
+            <Stat label="Knee" value={`${log.feedback.kneePain}/10`} />
+            <Stat label="Shoulder" value={`${log.feedback.shoulderPain}/10`} />
+          </dl>
+          {log.feedback.note ? <p className={styles.note}>{log.feedback.note}</p> : null}
         </section>
       ) : null}
 
@@ -345,17 +396,20 @@ function NutritionThatDaySection({ log }: { log: WorkoutLog }) {
         Nutrition currently recorded for {dateKey} (may have been added or edited after this
         workout). Targets shown are your current settings, not historical snapshots.
       </p>
-      <ul className={styles.summaryList}>
-        <li>
-          Calories: {formatMacro(totals.calories)} / {formatMacro(settings.calorieTarget)} kcal
-          (current target)
-        </li>
-        <li>
-          Protein: {formatMacro(totals.proteinGrams, 1)} /{" "}
-          {formatMacro(settings.proteinTargetGrams, 1)} g (current target)
-        </li>
-        <li>{remainingParts.join(" · ")}</li>
-      </ul>
+      <dl className={styles.stats}>
+        <Stat
+          label="Calories"
+          value={`${formatMacro(totals.calories)} / ${formatMacro(settings.calorieTarget)}`}
+        />
+        <Stat
+          label="Protein"
+          value={`${formatMacro(totals.proteinGrams, 1)} / ${formatMacro(
+            settings.proteinTargetGrams,
+            1
+          )} g`}
+        />
+      </dl>
+      <p className={styles.meta}>{remainingParts.join(" · ")}</p>
       <Link to={`/nutrition/${dateKey}`} className={styles.nutritionLink}>
         View Nutrition Day
       </Link>
