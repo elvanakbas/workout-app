@@ -2,7 +2,8 @@
   padding: var(--space-4);
   max-width: 640px;
   margin: 0 auto;
-  padding-bottom: calc(var(--space-6) + 64px);
+  /* The nav is pinned outside the scroll area now, so no clearance is needed. */
+  padding-bottom: var(--space-6);
 }
 
 .header {

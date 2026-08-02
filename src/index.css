@@ -49,11 +49,19 @@ body {
   overscroll-behavior-y: none;
 }
 
+/**
+ * A definite height, not min-height: with min-height the root simply grew past
+ * the viewport, `.main`'s overflow-y never engaged, the document scrolled
+ * instead, and the bottom navigation ended up below the fold — you had to
+ * scroll a whole screen to reach Nutrition/History/Account. `dvh` keeps this
+ * correct while a mobile browser's URL bar collapses.
+ */
 #root {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 button {
